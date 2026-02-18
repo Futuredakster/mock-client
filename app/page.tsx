@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const MOCK_SERVER_URL = "http://localhost:3005";
+const MOCK_SERVER_URL = "https://mock-production-9761.up.railway.app";
 
 type CallResult = {
   success: boolean;
