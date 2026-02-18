@@ -81,6 +81,7 @@ export default function Home() {
           to: getE164(phoneNumber),
           mode,
           ...(mode === "tts" ? { message } : {}),
+          ...(mode === "ai" && selectedCustomer ? { customerId: selectedCustomer.id } : {}),
         }),
       });
       const data = await res.json();
