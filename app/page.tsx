@@ -57,7 +57,8 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: getE164(phoneNumber),
-          message: mode === "tts" ? message : "Hello, this is a test AI call.",
+          mode,
+          ...(mode === "tts" ? { message } : {}),
         }),
       });
       const data = await res.json();
