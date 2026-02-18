@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const MOCK_SERVER_URL = "https://mock-production-9761.up.railway.app";
 
@@ -12,12 +12,34 @@ type CallResult = {
   error?: string;
 };
 
+type Customer = {
+  id: number;
+  name: string;
+  address: string;
+  dateOfBirth: string;
+  phone: string;
+  lastOrder: {
+    item: string;
+    date: string;
+    orderNumber: string;
+  };
+};
+
 export default function Home() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CallResult | null>(null);
   const [mode, setMode] = useState<"ai" | "tts">("ai");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+
+  useEffect(() => {
+    fetch(`${MOCK_SERVER_URL}/customers`)
+      .then((res) => res.json())
+      .then((data) => setCustomers(data))
+      .catch(() => {});
+  }, []);
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -189,6 +211,46 @@ export default function Home() {
                 <p className="text-sm opacity-80">{result.error}</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Customers */}
+        {customers.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold text-zinc-200">Mock Customers</h2>
+            <p className="text-xs text-zinc-500">
+              The AI will use this data to verify the caller. Click a customer to auto-fill their phone number.
+            </p>
+            <div className="space-y-2">
+              {customers.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedCustomer(c);
+                    const digits = c.phone.replace(/\D/g, "");
+                    const local = digits.startsWith("1") ? digits.slice(1) : digits;
+                    setPhoneNumber(
+                      `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6, 10)}`
+                    );
+                  }}
+                  className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer ${
+                    selectedCustomer?.id === c.id
+                      ? "bg-indigo-900/30 border-indigo-600"
+                      : "bg-zinc-900 border-zinc-800 hover:border-zinc-600"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-zinc-200">{c.name}</span>
+                    <span className="text-xs text-zinc-500">{c.phone}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-zinc-500 space-y-0.5">
+                    <p>📍 {c.address}</p>
+                    <p>🎂 DOB: {c.dateOfBirth}</p>
+                    <p>📦 Last order: {c.lastOrder.item} ({c.lastOrder.date})</p>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
