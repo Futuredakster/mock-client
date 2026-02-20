@@ -13,6 +13,11 @@ type Upload = {
   status: string;
   call_sid: string | null;
   call_result: string | null;
+  outcome: string | null;
+  call_summary: string | null;
+  call_data: Record<string, string> | null;
+  call_duration: number | null;
+  called_at: string | null;
   created_at: string;
 };
 
@@ -25,6 +30,9 @@ type Batch = {
   completed: string;
   failed: string;
   skipped: string;
+  no_answer: string;
+  voicemail: string;
+  with_outcome: string;
   uploaded_by_name: string;
   flow_name: string | null;
   flow_id: string | null;
@@ -303,6 +311,9 @@ export default function UploadsPage() {
                         {Number(b.completed) > 0 && <span className="text-green-400">✅ {b.completed}</span>}
                         {Number(b.failed) > 0 && <span className="text-red-400">❌ {b.failed}</span>}
                         {Number(b.skipped) > 0 && <span className="text-zinc-500">⏭ {b.skipped}</span>}
+                        {Number(b.no_answer) > 0 && <span className="text-orange-400">☎️ {b.no_answer} no answer</span>}
+                        {Number(b.voicemail) > 0 && <span className="text-purple-400">📭 {b.voicemail} voicemail</span>}
+                        {Number(b.with_outcome) > 0 && <span className="text-cyan-400">🏷 {b.with_outcome} with outcome</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -318,8 +329,9 @@ export default function UploadsPage() {
                           <tr>
                             <th className="text-left px-3 py-2 text-zinc-400 font-medium">Phone</th>
                             <th className="text-left px-3 py-2 text-zinc-400 font-medium">Status</th>
+                            <th className="text-left px-3 py-2 text-zinc-400 font-medium">Outcome</th>
                             <th className="text-left px-3 py-2 text-zinc-400 font-medium">Data</th>
-                            <th className="text-left px-3 py-2 text-zinc-400 font-medium">Call SID</th>
+                            <th className="text-left px-3 py-2 text-zinc-400 font-medium">Summary</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -329,10 +341,30 @@ export default function UploadsPage() {
                               <td className="px-3 py-2">
                                 <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColor(row.status)}`}>{row.status}</span>
                               </td>
+                              <td className="px-3 py-2">
+                                {row.outcome ? (
+                                  <span className={`text-xs px-2 py-0.5 rounded border ${
+                                    row.outcome.includes("change") ? "bg-green-900/40 text-green-300 border-green-800/50" :
+                                    row.outcome.includes("no_") ? "bg-zinc-800 text-zinc-400 border-zinc-700" :
+                                    row.outcome.includes("fail") ? "bg-red-900/40 text-red-300 border-red-800/50" :
+                                    "bg-zinc-800 text-zinc-300 border-zinc-700"
+                                  }`}>{row.outcome}</span>
+                                ) : (
+                                  <span className="text-xs text-zinc-600">—</span>
+                                )}
+                              </td>
                               <td className="px-3 py-2 text-zinc-400 text-xs max-w-xs truncate">
                                 {Object.entries(row.raw_data).map(([k, v]) => `${k}: ${v}`).join(", ")}
                               </td>
-                              <td className="px-3 py-2 text-zinc-500 text-xs font-mono">{row.call_sid || "—"}</td>
+                              <td className="px-3 py-2 text-xs max-w-xs">
+                                {row.call_summary ? (
+                                  <span className="text-zinc-300">{row.call_summary}</span>
+                                ) : row.call_duration ? (
+                                  <span className="text-zinc-500">{row.call_duration}s call</span>
+                                ) : (
+                                  <span className="text-zinc-600">—</span>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>

@@ -13,6 +13,8 @@ type FlowNode = {
   is_root: boolean;
   position_x: number;
   position_y: number;
+  outcome: string | null;
+  capture_field: string | null;
 };
 
 type FlowEdge = {
@@ -56,12 +58,18 @@ export default function FlowDetailPage() {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editMessage, setEditMessage] = useState("");
+  const [editNodeType, setEditNodeType] = useState("");
+  const [editOutcome, setEditOutcome] = useState("");
+  const [editCaptureField, setEditCaptureField] = useState("");
 
   // Adding a response branch
   const [addingResponseTo, setAddingResponseTo] = useState<string | null>(null);
   const [newCondition, setNewCondition] = useState("");
   const [newAiMessage, setNewAiMessage] = useState("");
   const [newNodeLabel, setNewNodeLabel] = useState("");
+  const [newNodeType, setNewNodeType] = useState("question");
+  const [newOutcome, setNewOutcome] = useState("");
+  const [newCaptureField, setNewCaptureField] = useState("");
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -102,13 +110,19 @@ export default function FlowDetailPage() {
     } catch {}
   };
 
-  // Update a node's label + ai_message
+  // Update a node's label + ai_message + outcome + capture_field
   const saveNode = async (nodeId: string) => {
     try {
       await fetch(`${serverUrl}/api/flows/${flowId}/nodes/${nodeId}`, {
         method: "PUT",
         headers: authHeaders(),
-        body: JSON.stringify({ label: editLabel, ai_message: editMessage }),
+        body: JSON.stringify({
+          label: editLabel,
+          ai_message: editMessage,
+          node_type: editNodeType,
+          outcome: editOutcome || null,
+          capture_field: editCaptureField || null,
+        }),
       });
       setEditingNodeId(null);
       fetchFlow();
@@ -126,7 +140,9 @@ export default function FlowDetailPage() {
         body: JSON.stringify({
           label: newNodeLabel || newCondition,
           ai_message: newAiMessage,
-          node_type: "question",
+          node_type: newNodeType,
+          outcome: newOutcome || null,
+          capture_field: newCaptureField || null,
         }),
       });
       const newNode = await nodeRes.json();
@@ -148,6 +164,9 @@ export default function FlowDetailPage() {
       setNewCondition("");
       setNewAiMessage("");
       setNewNodeLabel("");
+      setNewNodeType("question");
+      setNewOutcome("");
+      setNewCaptureField("");
       fetchFlow();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to add response");
@@ -197,6 +216,7 @@ export default function FlowDetailPage() {
       statement: "border-l-purple-500 bg-purple-950/20",
       end: "border-l-red-500 bg-red-950/20",
       transfer: "border-l-orange-500 bg-orange-950/20",
+      capture: "border-l-cyan-500 bg-cyan-950/20",
     };
 
     const typeIcons: Record<string, string> = {
@@ -205,6 +225,7 @@ export default function FlowDetailPage() {
       statement: "📢",
       end: "🔴",
       transfer: "🔀",
+      capture: "📝",
     };
 
     return (
@@ -214,13 +235,30 @@ export default function FlowDetailPage() {
           {isEditing ? (
             /* ---- EDIT MODE ---- */
             <div className="space-y-3">
-              <div>
-                <label className="text-xs text-zinc-400 block mb-1">Label (short name)</label>
-                <input
-                  value={editLabel}
-                  onChange={(e) => setEditLabel(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-zinc-400 block mb-1">Label</label>
+                  <input
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Type</label>
+                  <select
+                    value={editNodeType}
+                    onChange={(e) => setEditNodeType(e.target.value)}
+                    className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="start">🟢 Start</option>
+                    <option value="question">💬 Question</option>
+                    <option value="statement">📢 Statement</option>
+                    <option value="capture">📝 Capture</option>
+                    <option value="end">🔴 End</option>
+                    <option value="transfer">🔀 Transfer</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="text-xs text-zinc-400 block mb-1">What should the AI say?</label>
@@ -231,6 +269,30 @@ export default function FlowDetailPage() {
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
                 />
               </div>
+              {/* Outcome — for end/transfer nodes */}
+              {(editNodeType === "end" || editNodeType === "transfer") && (
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Outcome tag (e.g. &quot;no_change&quot;, &quot;order_changed&quot;, &quot;verification_failed&quot;)</label>
+                  <input
+                    value={editOutcome}
+                    onChange={(e) => setEditOutcome(e.target.value)}
+                    placeholder="e.g. order_changed"
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
+              {/* Capture field — for capture nodes */}
+              {editNodeType === "capture" && (
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Capture field (which field in the upload data to update, e.g. &quot;medication&quot;, &quot;order&quot;)</label>
+                  <input
+                    value={editCaptureField}
+                    onChange={(e) => setEditCaptureField(e.target.value)}
+                    placeholder="e.g. medication"
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={() => saveNode(node.id)} className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded-lg text-xs font-medium cursor-pointer">Save</button>
                 <button onClick={() => setEditingNodeId(null)} className="px-4 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded-lg text-xs cursor-pointer">Cancel</button>
@@ -247,7 +309,7 @@ export default function FlowDetailPage() {
                 </div>
                 <div className="flex gap-1">
                   <button
-                    onClick={() => { setEditingNodeId(node.id); setEditLabel(node.label); setEditMessage(node.ai_message); }}
+                    onClick={() => { setEditingNodeId(node.id); setEditLabel(node.label); setEditMessage(node.ai_message); setEditNodeType(node.node_type); setEditOutcome(node.outcome || ""); setEditCaptureField(node.capture_field || ""); }}
                     className="px-2 py-1 hover:bg-zinc-700 rounded text-xs text-zinc-400 cursor-pointer"
                     title="Edit"
                   >
@@ -271,6 +333,20 @@ export default function FlowDetailPage() {
                 <p className="text-sm text-zinc-200 leading-relaxed">{node.ai_message}</p>
               </div>
 
+              {/* Outcome badge for end/transfer nodes */}
+              {node.outcome && (node.node_type === "end" || node.node_type === "transfer") && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-0.5 bg-red-900/40 text-red-300 rounded border border-red-800/50">🏷 OUTCOME: {node.outcome}</span>
+                </div>
+              )}
+
+              {/* Capture badge for capture nodes */}
+              {node.capture_field && node.node_type === "capture" && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[10px] px-2 py-0.5 bg-cyan-900/40 text-cyan-300 rounded border border-cyan-800/50">📝 CAPTURES: {node.capture_field}</span>
+                </div>
+              )}
+
               {/* Response count & add button */}
               <div className="mt-3 flex items-center gap-2">
                 <span className="text-xs text-zinc-500">
@@ -284,6 +360,9 @@ export default function FlowDetailPage() {
                     setNewCondition("");
                     setNewAiMessage("");
                     setNewNodeLabel("");
+                    setNewNodeType("question");
+                    setNewOutcome("");
+                    setNewCaptureField("");
                   }}
                   className="text-xs text-indigo-400 hover:text-indigo-300 cursor-pointer"
                 >
@@ -347,6 +426,48 @@ export default function FlowDetailPage() {
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
+
+              {/* Node type selector */}
+              <div>
+                <label className="text-xs text-zinc-400 block mb-1">Node type</label>
+                <select
+                  value={newNodeType}
+                  onChange={(e) => setNewNodeType(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="question">💬 Question (conversation continues)</option>
+                  <option value="statement">📢 Statement (info only)</option>
+                  <option value="capture">📝 Capture (record customer&apos;s answer)</option>
+                  <option value="end">🔴 End (conversation stops)</option>
+                  <option value="transfer">🔀 Transfer (send to human)</option>
+                </select>
+              </div>
+
+              {/* Outcome — for end/transfer nodes */}
+              {(newNodeType === "end" || newNodeType === "transfer") && (
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Outcome tag</label>
+                  <input
+                    value={newOutcome}
+                    onChange={(e) => setNewOutcome(e.target.value)}
+                    placeholder="e.g. order_changed, no_change, verification_failed"
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
+
+              {/* Capture field — for capture nodes */}
+              {newNodeType === "capture" && (
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Which upload field to update?</label>
+                  <input
+                    value={newCaptureField}
+                    onChange={(e) => setNewCaptureField(e.target.value)}
+                    placeholder="e.g. medication, order, address"
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              )}
 
               <button
                 onClick={() => addResponseBranch(node.id)}
