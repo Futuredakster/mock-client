@@ -1,264 +1,204 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 
-const MOCK_SERVER_URL = "https://mock-production-9761.up.railway.app";
-
-type CallResult = {
-  success: boolean;
-  callSid?: string;
-  customer?: string;
-  phone?: string;
-  error?: string;
-};
-
-type Customer = {
-  id: number;
+type Flow = {
+  id: string;
   name: string;
-  address: string;
-  dateOfBirth: string;
-  phone: string;
-  lastOrder: {
-    item: string;
-    date: string;
-    orderNumber: string;
-  };
+  description: string;
+  is_active: boolean;
+  created_at: string;
 };
 
-export default function Home() {
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<CallResult | null>(null);
-  const [mode, setMode] = useState<"ai" | "tts">("ai");
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+type Batch = {
+  batch_id: string;
+  uploaded_at: string;
+  total_rows: string;
+  pending: string;
+  calling: string;
+  completed: string;
+  failed: string;
+  flow_name: string | null;
+};
+
+export default function DashboardPage() {
+  const { user, token, loading, serverUrl, authHeaders } = useAuth();
+  const router = useRouter();
+  const [flows, setFlows] = useState<Flow[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [stats, setStats] = useState({ totalFlows: 0, totalUploads: 0, pendingCalls: 0, completedCalls: 0 });
 
   useEffect(() => {
-    fetch(`${MOCK_SERVER_URL}/customers`)
-      .then((res) => res.json())
-      .then((data) => setCustomers(data))
+    if (!loading && !user) router.push("/login");
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (!token || !user) return;
+
+    // Fetch flows
+    fetch(`${serverUrl}/api/flows?userId=${user.id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setFlows(Array.isArray(data) ? data.slice(0, 5) : []);
+        setStats((s) => ({ ...s, totalFlows: Array.isArray(data) ? data.length : 0 }));
+      })
       .catch(() => {});
-  }, []);
 
-  const formatPhone = (value: string) => {
-    const digits = value.replace(/\D/g, "");
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
-  };
+    // Fetch batches
+    fetch(`${serverUrl}/api/uploads`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : [];
+        setBatches(arr.slice(0, 5));
+        const totalUploads = arr.reduce((sum: number, b: Batch) => sum + Number(b.total_rows), 0);
+        const pendingCalls = arr.reduce((sum: number, b: Batch) => sum + Number(b.pending), 0);
+        const completedCalls = arr.reduce((sum: number, b: Batch) => sum + Number(b.completed), 0);
+        setStats((s) => ({ ...s, totalUploads, pendingCalls, completedCalls }));
+      })
+      .catch(() => {});
+  }, [token, user, serverUrl, authHeaders]);
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhoneNumber(formatPhone(e.target.value));
-  };
-
-  const getE164 = (phone: string) => {
-    const digits = phone.replace(/\D/g, "");
-    return digits.length === 10 ? `+1${digits}` : `+${digits}`;
-  };
-
-  const makeCall = async () => {
-    const digits = phoneNumber.replace(/\D/g, "");
-    if (digits.length < 10) {
-      setResult({ success: false, error: "Enter a valid 10-digit phone number" });
-      return;
-    }
-
-    setLoading(true);
-    setResult(null);
-
-    try {
-      if (mode === "tts" && !message.trim()) {
-        setResult({ success: false, error: "Enter a message for the call" });
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch(`${MOCK_SERVER_URL}/call`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: getE164(phoneNumber),
-          mode,
-          ...(mode === "tts" ? { message } : {}),
-          ...(mode === "ai" && selectedCustomer ? { customerId: selectedCustomer.id } : {}),
-        }),
-      });
-      const data = await res.json();
-      setResult(data);
-    } catch (err) {
-      setResult({
-        success: false,
-        error: err instanceof Error ? err.message : "Failed to connect to mock server",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading || !user) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
+        <p className="text-zinc-500">Loading...</p>
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-zinc-950 text-white">
-      <div className="w-full max-w-md space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="text-5xl mb-4">📞</div>
-          <h1 className="text-3xl font-bold tracking-tight">Mock Caller</h1>
-          <p className="text-zinc-400 mt-2">
-            Trigger an outbound call to any phone number
-          </p>
+    <main className="min-h-screen bg-zinc-950 text-white">
+      <div className="max-w-6xl mx-auto p-6 space-y-8">
+        {/* Welcome */}
+        <div>
+          <h1 className="text-2xl font-bold">Welcome back, {user.name} 👋</h1>
+          <p className="text-zinc-400 text-sm mt-1">Here&apos;s an overview of your call operations</p>
         </div>
 
-        {/* Mode Toggle */}
-        <div className="flex bg-zinc-900 rounded-lg p-1">
-          <button
-            onClick={() => setMode("ai")}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all cursor-pointer ${
-              mode === "ai"
-                ? "bg-indigo-600 text-white shadow"
-                : "text-zinc-400 hover:text-white"
-            }`}
-          >
-            🤖 AI Call
-          </button>
-          <button
-            onClick={() => setMode("tts")}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all cursor-pointer ${
-              mode === "tts"
-                ? "bg-indigo-600 text-white shadow"
-                : "text-zinc-400 hover:text-white"
-            }`}
-          >
-            🔊 TTS Call
-          </button>
-        </div>
-
-        {/* Form */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-2">
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              value={phoneNumber}
-              onChange={handlePhoneChange}
-              placeholder="(303) 555-1234"
-              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg tracking-wide"
-              maxLength={14}
-            />
-          </div>
-
-          {mode === "tts" && (
-            <div>
-              <label className="block text-sm font-medium text-zinc-300 mb-2">
-                Message to Speak
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Hello! This is a test call from the mock server."
-                rows={3}
-                className="w-full px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-              />
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: "Flows", value: stats.totalFlows, icon: "🔀", color: "text-indigo-400" },
+            { label: "Uploaded Contacts", value: stats.totalUploads, icon: "📋", color: "text-blue-400" },
+            { label: "Pending Calls", value: stats.pendingCalls, icon: "⏳", color: "text-yellow-400" },
+            { label: "Completed Calls", value: stats.completedCalls, icon: "✅", color: "text-green-400" },
+          ].map((stat) => (
+            <div key={stat.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+              <div className="text-2xl mb-1">{stat.icon}</div>
+              <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+              <div className="text-xs text-zinc-500 mt-1">{stat.label}</div>
             </div>
-          )}
-
-          {mode === "ai" && (
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 text-sm text-zinc-400">
-              <p className="font-medium text-zinc-300 mb-1">AI Mode</p>
-              <p>
-                The call will use Azure OpenAI Realtime to have an interactive
-                AI conversation with the person who answers.
-              </p>
-            </div>
-          )}
-
-          <button
-            onClick={makeCall}
-            disabled={loading}
-            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors text-lg cursor-pointer"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                Calling...
-              </span>
-            ) : (
-              "Make Call"
-            )}
-          </button>
+          ))}
         </div>
 
-        {/* Result */}
-        {result && (
-          <div
-            className={`p-4 rounded-lg border ${
-              result.success
-                ? "bg-green-900/30 border-green-700 text-green-300"
-                : "bg-red-900/30 border-red-700 text-red-300"
-            }`}
-          >
-            {result.success ? (
-              <div className="space-y-1">
-                <p className="font-semibold">✅ Call Initiated!</p>
-                <p className="text-sm opacity-80">SID: {result.callSid}</p>
-              </div>
-            ) : (
-              <div>
-                <p className="font-semibold">❌ Call Failed</p>
-                <p className="text-sm opacity-80">{result.error}</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Customers */}
-        {customers.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-zinc-200">Mock Customers</h2>
-            <p className="text-xs text-zinc-500">
-              The AI will use this data to verify the caller. Click a customer to auto-fill their phone number.
-            </p>
-            <div className="space-y-2">
-              {customers.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    setSelectedCustomer(c);
-                    const digits = c.phone.replace(/\D/g, "");
-                    const local = digits.startsWith("1") ? digits.slice(1) : digits;
-                    setPhoneNumber(
-                      `(${local.slice(0, 3)}) ${local.slice(3, 6)}-${local.slice(6, 10)}`
-                    );
-                  }}
-                  className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer ${
-                    selectedCustomer?.id === c.id
-                      ? "bg-indigo-900/30 border-indigo-600"
-                      : "bg-zinc-900 border-zinc-800 hover:border-zinc-600"
-                  }`}
+        {/* Two columns */}
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Recent Flows */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Recent Flows</h2>
+              <Link href="/flows" className="text-xs text-indigo-400 hover:text-indigo-300">View all →</Link>
+            </div>
+            {flows.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-zinc-500 text-sm mb-3">No flows yet</p>
+                <Link
+                  href="/flows"
+                  className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-zinc-200">{c.name}</span>
-                    <span className="text-xs text-zinc-500">{c.phone}</span>
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-500 space-y-0.5">
-                    <p>📍 {c.address}</p>
-                    <p>🎂 DOB: {c.dateOfBirth}</p>
-                    <p>📦 Last order: {c.lastOrder.item} ({c.lastOrder.date})</p>
-                  </div>
-                </button>
-              ))}
-            </div>
+                  Create Your First Flow
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {flows.map((f) => (
+                  <Link
+                    key={f.id}
+                    href={`/flows/${f.id}`}
+                    className="flex items-center justify-between p-3 bg-zinc-800/50 hover:bg-zinc-800 rounded-lg transition-colors"
+                  >
+                    <div>
+                      <div className="font-medium text-sm">{f.name}</div>
+                      <div className="text-xs text-zinc-500 mt-0.5">{f.description || "No description"}</div>
+                    </div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${f.is_active ? "bg-green-900/40 text-green-400" : "bg-zinc-800 text-zinc-500"}`}>
+                      {f.is_active ? "Active" : "Inactive"}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Footer */}
-        <p className="text-center text-xs text-zinc-600">
-          Connects to mock server at {MOCK_SERVER_URL}
-        </p>
+          {/* Recent Uploads */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Recent Uploads</h2>
+              <Link href="/uploads" className="text-xs text-indigo-400 hover:text-indigo-300">View all →</Link>
+            </div>
+            {batches.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-zinc-500 text-sm mb-3">No uploads yet</p>
+                <Link
+                  href="/uploads"
+                  className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Upload Your First Excel
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {batches.map((b) => (
+                  <div key={b.batch_id} className="p-3 bg-zinc-800/50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{b.flow_name || "No flow"}</span>
+                      <span className="text-xs text-zinc-500">
+                        {new Date(b.uploaded_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs">
+                      <span className="text-zinc-400">{b.total_rows} contacts</span>
+                      {Number(b.pending) > 0 && <span className="text-yellow-400">⏳{b.pending}</span>}
+                      {Number(b.completed) > 0 && <span className="text-green-400">✅{b.completed}</span>}
+                      {Number(b.failed) > 0 && <span className="text-red-400">❌{b.failed}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-3 gap-4">
+          <Link
+            href="/flows"
+            className="p-4 bg-zinc-900 border border-zinc-800 hover:border-indigo-600/50 rounded-xl text-center transition-colors"
+          >
+            <div className="text-2xl mb-2">🔀</div>
+            <div className="text-sm font-medium">Manage Flows</div>
+            <div className="text-xs text-zinc-500 mt-1">Create call scripts</div>
+          </Link>
+          <Link
+            href="/uploads"
+            className="p-4 bg-zinc-900 border border-zinc-800 hover:border-indigo-600/50 rounded-xl text-center transition-colors"
+          >
+            <div className="text-2xl mb-2">📋</div>
+            <div className="text-sm font-medium">Upload Contacts</div>
+            <div className="text-xs text-zinc-500 mt-1">Import Excel files</div>
+          </Link>
+          <Link
+            href="/caller"
+            className="p-4 bg-zinc-900 border border-zinc-800 hover:border-indigo-600/50 rounded-xl text-center transition-colors"
+          >
+            <div className="text-2xl mb-2">📞</div>
+            <div className="text-sm font-medium">Quick Call</div>
+            <div className="text-xs text-zinc-500 mt-1">Dial a number</div>
+          </Link>
+        </div>
       </div>
     </main>
   );
