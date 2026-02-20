@@ -168,6 +168,43 @@ export default function UploadsPage() {
     } catch {}
   };
 
+  const [callingIds, setCallingIds] = useState<Set<string>>(new Set());
+
+  const callUpload = async (uploadId: string) => {
+    setCallingIds((prev) => new Set(prev).add(uploadId));
+    try {
+      const res = await fetch(`${serverUrl}/call-upload/${uploadId}`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      // Refresh the batch rows
+      if (expandedBatch) {
+        const rowsRes = await fetch(`${serverUrl}/api/uploads/batch/${expandedBatch}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (rowsRes.ok) setBatchRows(await rowsRes.json());
+      }
+      fetchBatches();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Call failed");
+    } finally {
+      setCallingIds((prev) => { const s = new Set(prev); s.delete(uploadId); return s; });
+    }
+  };
+
+  const callAllPending = async (batchId: string) => {
+    const pendingRows = batchRows.filter((r) => r.status === "pending");
+    if (pendingRows.length === 0) return;
+    if (!confirm(`Call ${pendingRows.length} pending rows?`)) return;
+    for (const row of pendingRows) {
+      await callUpload(row.id);
+      // Small delay between calls to avoid overwhelming
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  };
+
   const statusColor = (s: string) => {
     switch (s) {
       case "pending": return "bg-yellow-900/40 text-yellow-300 border-yellow-700";
@@ -324,6 +361,18 @@ export default function UploadsPage() {
                   </div>
                   {expandedBatch === b.batch_id && (
                     <div className="border-t border-zinc-800 overflow-x-auto">
+                      {/* Call All Pending button */}
+                      {b.flow_id && Number(b.pending) > 0 && (
+                        <div className="px-4 py-2 bg-zinc-800/50 flex items-center justify-between">
+                          <span className="text-xs text-zinc-400">{b.pending} pending rows</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); callAllPending(b.batch_id); }}
+                            className="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                          >
+                            📞 Call All Pending
+                          </button>
+                        </div>
+                      )}
                       <table className="w-full text-sm">
                         <thead className="bg-zinc-800">
                           <tr>
@@ -332,6 +381,7 @@ export default function UploadsPage() {
                             <th className="text-left px-3 py-2 text-zinc-400 font-medium">Outcome</th>
                             <th className="text-left px-3 py-2 text-zinc-400 font-medium">Data</th>
                             <th className="text-left px-3 py-2 text-zinc-400 font-medium">Summary</th>
+                            <th className="text-left px-3 py-2 text-zinc-400 font-medium w-20">Action</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -363,6 +413,21 @@ export default function UploadsPage() {
                                   <span className="text-zinc-500">{row.call_duration}s call</span>
                                 ) : (
                                   <span className="text-zinc-600">—</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2">
+                                {row.status === "pending" && b.flow_id ? (
+                                  <button
+                                    onClick={() => callUpload(row.id)}
+                                    disabled={callingIds.has(row.id)}
+                                    className="px-2 py-1 bg-green-600 hover:bg-green-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white text-xs rounded transition-colors cursor-pointer"
+                                  >
+                                    {callingIds.has(row.id) ? "📞..." : "📞 Call"}
+                                  </button>
+                                ) : row.status === "calling" ? (
+                                  <span className="text-xs text-blue-400 animate-pulse">Calling...</span>
+                                ) : (
+                                  <span className="text-xs text-zinc-600">—</span>
                                 )}
                               </td>
                             </tr>
