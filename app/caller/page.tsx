@@ -33,6 +33,7 @@ type Batch = {
   uploaded_by_name: string;
   flow_name: string | null;
   flow_id: string | null;
+  data_fields: string[];
 };
 
 type Upload = {
@@ -65,6 +66,9 @@ export default function CallerPage() {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [batchRows, setBatchRows] = useState<Upload[]>([]);
+
+  // Flow variables expected by the selected flow
+  const [flowVariables, setFlowVariables] = useState<string[]>([]);
 
   // Call state
   const [callingIds, setCallingIds] = useState<Set<string>>(new Set());
@@ -127,11 +131,21 @@ export default function CallerPage() {
 
   // ─── Actions ──────────────────────────────────────────────────
 
-  const selectFlow = (flow: Flow) => {
+  const selectFlow = async (flow: Flow) => {
     setSelectedFlow(flow);
     setSelectedBatch(null);
     setBatchRows([]);
+    setFlowVariables([]);
     setStep("select-data");
+
+    // Fetch the variables/placeholders this flow expects
+    try {
+      const res = await fetch(`${serverUrl}/api/flows/${flow.id}/variables`);
+      if (res.ok) {
+        const data = await res.json();
+        setFlowVariables(data.variables || []);
+      }
+    } catch {}
   };
 
   const selectBatch = async (batch: Batch) => {
@@ -216,6 +230,29 @@ export default function CallerPage() {
       case "voicemail": return "bg-purple-900/40 text-purple-300 border-purple-700";
       default: return "bg-zinc-800 text-zinc-400 border-zinc-700";
     }
+  };
+
+  // ─── Field matching helpers ────────────────────────────────
+
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s_\-]+/g, "");
+
+  const getFieldMatch = (batchFields: string[]) => {
+    if (flowVariables.length === 0) return { matched: [] as string[], missing: [] as string[], extra: [] as string[] };
+    const normalizedBatch = batchFields.map((f) => ({ original: f, norm: normalize(f) }));
+    const matched: string[] = [];
+    const missing: string[] = [];
+    for (const v of flowVariables) {
+      const normV = normalize(v);
+      const found = normalizedBatch.find((bf) => bf.norm === normV);
+      if (found) {
+        matched.push(v);
+      } else {
+        missing.push(v);
+      }
+    }
+    const matchedNorms = new Set(matched.map(normalize));
+    const extra = batchFields.filter((f) => !matchedNorms.has(normalize(f)));
+    return { matched, missing, extra };
   };
 
   const batchesForFlow = selectedFlow
@@ -364,13 +401,27 @@ export default function CallerPage() {
             </div>
 
             {/* Batches already assigned to this flow */}
+            {/* Flow expects these variables */}
+            {flowVariables.length > 0 && (
+              <div className="bg-zinc-900/60 border border-zinc-800 rounded-lg px-4 py-3">
+                <p className="text-xs font-medium text-zinc-400 mb-1.5">Flow expects these data fields:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {flowVariables.map((v) => (
+                    <span key={v} className="text-xs px-2 py-0.5 rounded bg-indigo-900/40 text-indigo-300 border border-indigo-800/50">
+                      {v}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {batchesForFlow.assigned.length > 0 && (
               <div className="space-y-3">
                 <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
                   Assigned to this flow
                 </h2>
                 {batchesForFlow.assigned.map((b) => (
-                  <BatchCard key={b.batch_id} batch={b} onSelect={selectBatch} assigned />
+                  <BatchCard key={b.batch_id} batch={b} onSelect={selectBatch} assigned fieldMatch={getFieldMatch(b.data_fields || [])} />
                 ))}
               </div>
             )}
@@ -386,7 +437,7 @@ export default function CallerPage() {
                   <span className="text-indigo-400">{selectedFlow.name}</span>
                 </p>
                 {batchesForFlow.unassigned.map((b) => (
-                  <BatchCard key={b.batch_id} batch={b} onSelect={selectBatch} assigned={false} />
+                  <BatchCard key={b.batch_id} batch={b} onSelect={selectBatch} assigned={false} fieldMatch={getFieldMatch(b.data_fields || [])} />
                 ))}
               </div>
             )}
@@ -571,65 +622,101 @@ export default function CallerPage() {
 
 // ─── Sub-components ─────────────────────────────────────────────
 
+type FieldMatch = {
+  matched: string[];
+  missing: string[];
+  extra: string[];
+};
+
 function BatchCard({
   batch,
   onSelect,
   assigned,
+  fieldMatch,
 }: {
   batch: Batch;
   onSelect: (b: Batch) => void;
   assigned: boolean;
+  fieldMatch?: FieldMatch;
 }) {
   const total = Number(batch.total_rows);
   const pending = Number(batch.pending);
   const completed = Number(batch.completed);
   const progress = total > 0 ? Math.round(((total - pending) / total) * 100) : 0;
+  const hasMissing = fieldMatch && fieldMatch.missing.length > 0;
 
   return (
-    <button
-      onClick={() => onSelect(batch)}
-      className="w-full text-left bg-zinc-900 border border-zinc-800 rounded-xl p-4 hover:border-indigo-600/50 transition-all cursor-pointer group"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <span className="font-medium text-zinc-200 group-hover:text-indigo-400 transition-colors">
-              {batch.total_rows} contacts
-            </span>
-            {assigned ? (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-400 border border-indigo-800/50">
-                ✓ Assigned
+    <div className={`w-full text-left bg-zinc-900 border rounded-xl p-4 transition-all group ${
+      hasMissing ? "border-amber-700/60" : "border-zinc-800 hover:border-indigo-600/50"
+    }`}>
+      <button
+        onClick={() => onSelect(batch)}
+        className="w-full text-left cursor-pointer"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-3">
+              <span className="font-medium text-zinc-200 group-hover:text-indigo-400 transition-colors">
+                {batch.total_rows} contacts
               </span>
-            ) : (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700">
-                Unassigned
+              {assigned ? (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-400 border border-indigo-800/50">
+                  ✓ Assigned
+                </span>
+              ) : (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700">
+                  Unassigned
+                </span>
+              )}
+              <span className="text-xs text-zinc-600">
+                {new Date(batch.uploaded_at).toLocaleDateString()}{" "}
+                {new Date(batch.uploaded_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
-            )}
-            <span className="text-xs text-zinc-600">
-              {new Date(batch.uploaded_at).toLocaleDateString()}{" "}
-              {new Date(batch.uploaded_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 mt-2 text-xs">
-            {pending > 0 && <span className="text-yellow-400">⏳ {pending} pending</span>}
-            {Number(batch.calling) > 0 && <span className="text-blue-400">📞 {batch.calling} calling</span>}
-            {completed > 0 && <span className="text-green-400">✅ {completed} completed</span>}
-            {Number(batch.failed) > 0 && <span className="text-red-400">❌ {batch.failed} failed</span>}
-            {Number(batch.no_answer) > 0 && <span className="text-orange-400">☎️ {batch.no_answer} no answer</span>}
-          </div>
-          {/* Progress bar */}
-          {assigned && progress > 0 && (
-            <div className="mt-2 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-indigo-600 to-green-500 rounded-full transition-all"
-                style={{ width: `${progress}%` }}
-              />
             </div>
+            <div className="flex items-center gap-3 mt-2 text-xs">
+              {pending > 0 && <span className="text-yellow-400">⏳ {pending} pending</span>}
+              {Number(batch.calling) > 0 && <span className="text-blue-400">📞 {batch.calling} calling</span>}
+              {completed > 0 && <span className="text-green-400">✅ {completed} completed</span>}
+              {Number(batch.failed) > 0 && <span className="text-red-400">❌ {batch.failed} failed</span>}
+              {Number(batch.no_answer) > 0 && <span className="text-orange-400">☎️ {batch.no_answer} no answer</span>}
+            </div>
+            {/* Progress bar */}
+            {assigned && progress > 0 && (
+              <div className="mt-2 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-600 to-green-500 rounded-full transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
+          </div>
+          <span className="text-zinc-600 group-hover:text-indigo-400 text-xl ml-4 transition-colors">→</span>
+        </div>
+      </button>
+
+      {/* Field matching indicator */}
+      {fieldMatch && (fieldMatch.matched.length > 0 || fieldMatch.missing.length > 0) && (
+        <div className="mt-3 pt-3 border-t border-zinc-800/60">
+          <div className="flex flex-wrap gap-1.5">
+            {fieldMatch.matched.map((f) => (
+              <span key={f} className="text-[11px] px-1.5 py-0.5 rounded bg-green-900/30 text-green-400 border border-green-800/40">
+                ✓ {f}
+              </span>
+            ))}
+            {fieldMatch.missing.map((f) => (
+              <span key={f} className="text-[11px] px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-400 border border-amber-800/40">
+                ✗ {f}
+              </span>
+            ))}
+          </div>
+          {hasMissing && (
+            <p className="text-[11px] text-amber-400/80 mt-1.5">
+              ⚠ Missing {fieldMatch.missing.length} field{fieldMatch.missing.length > 1 ? "s" : ""} — the AI won&apos;t be able to fill in: {fieldMatch.missing.join(", ")}
+            </p>
           )}
         </div>
-        <span className="text-zinc-600 group-hover:text-indigo-400 text-xl ml-4 transition-colors">→</span>
-      </div>
-    </button>
+      )}
+    </div>
   );
 }
 
