@@ -168,6 +168,25 @@ export default function UploadsPage() {
     }
   };
 
+  const downloadTemplate = () => {
+    const sampleData = [
+      { patient_name: "Jane Smith", phone_number: "(303) 555-0101", date_of_birth: "03/15/1985", address: "123 Main St, Denver, CO 80202", medication: "Lisinopril 10mg", refill_number: "RX-20260115-001", last_fill_date: "01/15/2026" },
+      { patient_name: "Robert Johnson", phone_number: "(720) 555-0142", date_of_birth: "11/22/1970", address: "456 Oak Ave, Aurora, CO 80012", medication: "Metformin 500mg", refill_number: "RX-20260118-002", last_fill_date: "01/18/2026" },
+      { patient_name: "Maria Garcia", phone_number: "(303) 555-0198", date_of_birth: "07/04/1992", address: "789 Pine Rd, Lakewood, CO 80226", medication: "Amoxicillin 250mg", refill_number: "RX-20260120-003", last_fill_date: "01/20/2026" },
+      { patient_name: "David Lee", phone_number: "(720) 555-0167", date_of_birth: "09/30/1958", address: "321 Elm Blvd, Centennial, CO 80112", medication: "Atorvastatin 20mg", refill_number: "RX-20260122-004", last_fill_date: "01/22/2026" },
+      { patient_name: "Sarah Williams", phone_number: "(303) 555-0134", date_of_birth: "05/12/1980", address: "654 Cedar Ln, Westminster, CO 80031", medication: "Omeprazole 20mg", refill_number: "RX-20260125-005", last_fill_date: "01/25/2026" },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    // Set column widths
+    ws["!cols"] = [
+      { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 34 },
+      { wch: 20 }, { wch: 22 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Call List");
+    XLSX.writeFile(wb, "call_list_template.xlsx");
+  };
+
   if (loading || !user) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-zinc-950 text-white">
@@ -203,6 +222,16 @@ export default function UploadsPage() {
               <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
             </label>
             <p className="text-zinc-600 text-xs mt-2">Supports .xlsx, .xls, .csv</p>
+          </div>
+
+          <div className="flex items-center gap-3 px-1">
+            <button
+              onClick={downloadTemplate}
+              className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer flex items-center gap-1.5"
+            >
+              <span>📥</span> Download sample template
+            </button>
+            <span className="text-zinc-700 text-xs">— Pre-filled with mock patient data so you can see the expected format</span>
           </div>
 
           {parsedRows.length > 0 && (
