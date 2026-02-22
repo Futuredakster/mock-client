@@ -173,17 +173,17 @@ export default function UploadsPage() {
 
   const downloadTemplate = () => {
     const sampleData = [
-      { patient_name: "Jane Smith", phone_number: "(303) 555-0101", date_of_birth: "03/15/1985", address: "123 Main St, Denver, CO 80202", medication: "Lisinopril 10mg", refill_number: "RX-20260115-001", last_fill_date: "01/15/2026" },
-      { patient_name: "Robert Johnson", phone_number: "(720) 555-0142", date_of_birth: "11/22/1970", address: "456 Oak Ave, Aurora, CO 80012", medication: "Metformin 500mg", refill_number: "RX-20260118-002", last_fill_date: "01/18/2026" },
-      { patient_name: "Maria Garcia", phone_number: "(303) 555-0198", date_of_birth: "07/04/1992", address: "789 Pine Rd, Lakewood, CO 80226", medication: "Amoxicillin 250mg", refill_number: "RX-20260120-003", last_fill_date: "01/20/2026" },
-      { patient_name: "David Lee", phone_number: "(720) 555-0167", date_of_birth: "09/30/1958", address: "321 Elm Blvd, Centennial, CO 80112", medication: "Atorvastatin 20mg", refill_number: "RX-20260122-004", last_fill_date: "01/22/2026" },
-      { patient_name: "Sarah Williams", phone_number: "(303) 555-0134", date_of_birth: "05/12/1980", address: "654 Cedar Ln, Westminster, CO 80031", medication: "Omeprazole 20mg", refill_number: "RX-20260125-005", last_fill_date: "01/25/2026" },
+      { firstname: "Jane", phone_number: "(303) 842-0715", product_name: "Widget Pro X", quantity: 5, olddate: "02/15/2026", newdate: "03/01/2026" },
+      { firstname: "Robert", phone_number: "(720) 555-0142", product_name: "Turbo Blender 3000", quantity: 2, olddate: "02/10/2026", newdate: "02/28/2026" },
+      { firstname: "Maria", phone_number: "(303) 555-0198", product_name: "Solar Panel Kit", quantity: 10, olddate: "01/20/2026", newdate: "02/20/2026" },
+      { firstname: "David", phone_number: "(720) 555-0167", product_name: "Ergonomic Chair", quantity: 1, olddate: "02/01/2026", newdate: "02/22/2026" },
+      { firstname: "Sarah", phone_number: "(303) 555-0134", product_name: "Wireless Headset", quantity: 3, olddate: "02/05/2026", newdate: "02/25/2026" },
     ];
     const ws = XLSX.utils.json_to_sheet(sampleData);
     // Set column widths
     ws["!cols"] = [
-      { wch: 18 }, { wch: 16 }, { wch: 14 }, { wch: 34 },
-      { wch: 20 }, { wch: 22 }, { wch: 14 },
+      { wch: 14 }, { wch: 16 }, { wch: 22 }, { wch: 10 },
+      { wch: 14 }, { wch: 14 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Call List");
