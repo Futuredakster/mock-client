@@ -20,6 +20,7 @@ type Flow = {
 
 type Batch = {
   batch_id: string;
+  batch_name: string | null;
   uploaded_at: string;
   total_rows: string;
   pending: string;
@@ -657,8 +658,9 @@ function BatchCard({
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <span className="font-medium text-zinc-200 group-hover:text-indigo-400 transition-colors">
-                {batch.total_rows} contacts
+                {batch.batch_name || `${batch.total_rows} contacts`}
               </span>
+              {batch.batch_name && <span className="text-xs text-zinc-500">{batch.total_rows} contacts</span>}
               {assigned ? (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-400 border border-indigo-800/50">
                   ✓ Assigned

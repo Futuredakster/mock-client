@@ -23,6 +23,7 @@ type Upload = {
 
 type Batch = {
   batch_id: string;
+  batch_name: string | null;
   uploaded_at: string;
   total_rows: string;
   pending: string;
@@ -46,6 +47,7 @@ export default function UploadsPage() {
   const [parsedRows, setParsedRows] = useState<Record<string, string>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
   const [phoneColumn, setPhoneColumn] = useState("");
+  const [batchName, setBatchName] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ insertedRows: number; skippedRows: number; batchId: string } | null>(null);
 
@@ -118,7 +120,7 @@ export default function UploadsPage() {
       const res = await fetch(`${serverUrl}/api/uploads`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ rows }),
+        body: JSON.stringify({ rows, batchName: batchName.trim() || null }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -126,6 +128,7 @@ export default function UploadsPage() {
       setParsedRows([]);
       setHeaders([]);
       setPhoneColumn("");
+      setBatchName("");
       fetchBatches();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Upload failed");
@@ -236,6 +239,16 @@ export default function UploadsPage() {
 
           {parsedRows.length > 0 && (
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Upload Name</label>
+                <input
+                  type="text"
+                  value={batchName}
+                  onChange={(e) => setBatchName(e.target.value)}
+                  placeholder="e.g. February Refill Reminders, Morning Batch"
+                  className="w-full max-w-md px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
                   <label className="block text-xs text-zinc-400 mb-1">Phone Number Column</label>
@@ -309,7 +322,9 @@ export default function UploadsPage() {
                   <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-zinc-800/50 transition-colors" onClick={() => toggleBatch(b.batch_id)}>
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
-                        <span className="font-medium">{b.flow_name || "No flow assigned"}</span>
+                        <span className="font-medium">{b.batch_name || b.flow_name || "Untitled Upload"}</span>
+                        {b.batch_name && b.flow_name && <span className="text-xs text-zinc-500">· {b.flow_name}</span>}
+                        {!b.batch_name && !b.flow_name && <span className="text-xs text-zinc-500 italic">no name</span>}
                         <span className="text-xs text-zinc-500">
                           {new Date(b.uploaded_at).toLocaleDateString()} {new Date(b.uploaded_at).toLocaleTimeString()}
                         </span>
