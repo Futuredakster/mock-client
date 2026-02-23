@@ -133,15 +133,15 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Recent Uploads */}
+          {/* Recent Contacts */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Recent Uploads</h2>
+              <h2 className="text-lg font-semibold">Recent Contacts</h2>
               <Link href="/uploads" className="text-xs text-indigo-400 hover:text-indigo-300">View all →</Link>
             </div>
             {batches.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-zinc-500 text-sm mb-3">No uploads yet</p>
+                <p className="text-zinc-500 text-sm mb-3">No contacts yet</p>
                 <Link
                   href="/uploads"
                   className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors"
@@ -187,16 +187,16 @@ export default function DashboardPage() {
             className="p-4 bg-zinc-900 border border-zinc-800 hover:border-indigo-600/50 rounded-xl text-center transition-colors"
           >
             <div className="text-2xl mb-2">📋</div>
-            <div className="text-sm font-medium">Upload Contacts</div>
-            <div className="text-xs text-zinc-500 mt-1">Import Excel files</div>
+            <div className="text-sm font-medium">Contacts</div>
+            <div className="text-xs text-zinc-500 mt-1">Import & manage contacts</div>
           </Link>
           <Link
             href="/caller"
             className="p-4 bg-zinc-900 border border-zinc-800 hover:border-indigo-600/50 rounded-xl text-center transition-colors"
           >
             <div className="text-2xl mb-2">📞</div>
-            <div className="text-sm font-medium">Quick Call</div>
-            <div className="text-xs text-zinc-500 mt-1">Dial a number</div>
+            <div className="text-sm font-medium">Call Center</div>
+            <div className="text-xs text-zinc-500 mt-1">Start & monitor calls</div>
           </Link>
         </div>
       </div>

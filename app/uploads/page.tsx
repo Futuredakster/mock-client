@@ -203,7 +203,7 @@ export default function UploadsPage() {
       <div className="max-w-5xl mx-auto p-6 space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold">📋 Upload Manager</h1>
+          <h1 className="text-2xl font-bold">📋 Contacts</h1>
           <p className="text-zinc-400 text-sm mt-1">Upload Excel files with contact data · Assign flows and start calls from the Caller page</p>
         </div>
 
@@ -312,7 +312,7 @@ export default function UploadsPage() {
 
         {/* Batches List */}
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Upload History</h2>
+          <h2 className="text-lg font-semibold">Contact Batches</h2>
           {batches.length === 0 ? (
             <p className="text-zinc-500 text-sm">No uploads yet. Upload an Excel file above to get started.</p>
           ) : (

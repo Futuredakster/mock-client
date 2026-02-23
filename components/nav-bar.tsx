@@ -7,8 +7,8 @@ import { useAuth } from "@/lib/auth-context";
 const navLinks = [
   { href: "/", label: "Dashboard", icon: "🏠" },
   { href: "/flows", label: "Flows", icon: "🔀" },
-  { href: "/uploads", label: "Uploads", icon: "📋" },
-  { href: "/caller", label: "Caller", icon: "📞" },
+  { href: "/uploads", label: "Contacts", icon: "📋" },
+  { href: "/caller", label: "Call Center", icon: "📞" },
 ];
 
 export default function NavBar() {

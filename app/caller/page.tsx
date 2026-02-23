@@ -286,7 +286,7 @@ export default function CallerPage() {
             onClick={() => { setStep("select-flow"); setSelectedFlow(null); setSelectedBatch(null); }}
             className={`transition-colors cursor-pointer ${step === "select-flow" ? "text-white font-medium" : "text-zinc-500 hover:text-zinc-300"}`}
           >
-            📞 Caller
+            📞 Call Center
           </button>
           {selectedFlow && (
             <>
@@ -431,7 +431,7 @@ export default function CallerPage() {
             {batchesForFlow.unassigned.length > 0 && (
               <div className="space-y-3">
                 <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
-                  Unassigned uploads ({batchesForFlow.unassigned.length})
+                  Unassigned contacts ({batchesForFlow.unassigned.length})
                 </h2>
                 <p className="text-xs text-zinc-600">
                   Selecting a batch will assign it to{" "}
@@ -446,7 +446,7 @@ export default function CallerPage() {
             {batchesForFlow.assigned.length === 0 && batchesForFlow.unassigned.length === 0 && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
                 <div className="text-4xl mb-4">📋</div>
-                <h3 className="text-lg font-semibold mb-2">No upload data available</h3>
+                <h3 className="text-lg font-semibold mb-2">No contact data available</h3>
                 <p className="text-zinc-500 text-sm mb-4">
                   Upload an Excel file first, then come back here to start calling.
                 </p>
@@ -454,7 +454,7 @@ export default function CallerPage() {
                   href="/uploads"
                   className="inline-block px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-medium transition-colors"
                 >
-                  Go to Uploads →
+                  Go to Contacts →
                 </Link>
               </div>
             )}
