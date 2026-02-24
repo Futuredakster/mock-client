@@ -33,6 +33,7 @@ export default function FlowsPage() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -102,6 +103,33 @@ export default function FlowsPage() {
       setError(err instanceof Error ? err.message : "Failed to create flow");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const generateWithAI = async () => {
+    if (!newName.trim()) {
+      setError("Flow name is required");
+      return;
+    }
+    setGenerating(true);
+    setError("");
+    try {
+      const res = await fetch(`${serverUrl}/api/flows/generate`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          userId: user?.id,
+          name: newName,
+          description: newDesc,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      router.push(`/flows/${data.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI generation failed");
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -194,34 +222,49 @@ export default function FlowsPage() {
               </div>
             )}
 
-            {/* Blank flow */}
+            {/* Custom flow */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 space-y-3">
-              <h3 className="font-semibold text-sm">Or start from scratch</h3>
+              <h3 className="font-semibold text-sm">Or create your own</h3>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="Flow name"
+                placeholder="Flow name (e.g. Appointment Reminder, Order Follow-up)"
                 className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 onKeyDown={(e) => e.key === "Enter" && createFlow()}
               />
               <textarea
                 value={newDesc}
                 onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="Description (optional)"
+                placeholder="Describe the purpose of this flow — the more detail you give, the better AI can design it (optional for blank)"
                 rows={2}
                 className="w-full px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-sm"
               />
               <div className="flex items-center gap-3">
                 <button
+                  onClick={generateWithAI}
+                  disabled={generating || creating}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors cursor-pointer text-sm flex items-center gap-2"
+                >
+                  {generating ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
+                      AI Generating…
+                    </>
+                  ) : (
+                    <>✨ Generate with AI</>
+                  )}
+                </button>
+                <button
                   onClick={createFlow}
-                  disabled={creating}
+                  disabled={creating || generating}
                   className="px-5 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 text-white font-medium rounded-lg transition-colors cursor-pointer text-sm"
                 >
-                  {creating ? "Creating..." : "Create Blank Flow"}
+                  {creating ? "Creating..." : "Create Blank"}
                 </button>
                 {error && <span className="text-red-400 text-sm">{error}</span>}
               </div>
+              <p className="text-[11px] text-zinc-600">✨ AI will design all nodes, branches, and responses based on your name &amp; description</p>
             </div>
           </div>
         )}
