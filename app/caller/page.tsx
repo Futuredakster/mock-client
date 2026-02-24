@@ -300,6 +300,26 @@ export default function CallerPage() {
     }
   };
 
+  const scheduleRow = async (uploadId: string, mstDateStr: string) => {
+    try {
+      const utcTime = mstToUtc(mstDateStr);
+      const res = await fetch(
+        `${serverUrl}/api/uploads/${uploadId}/schedule`,
+        {
+          method: "PUT",
+          headers: authHeaders(),
+          body: JSON.stringify({ scheduledAt: utcTime }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (selectedBatch) await fetchBatchRows(selectedBatch.batch_id);
+      fetchBatches();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Schedule failed");
+    }
+  };
+
   const goBack = () => {
     if (step === "call-dashboard") {
       setStep("select-data");
@@ -668,7 +688,7 @@ export default function CallerPage() {
                     <th className="text-left px-4 py-3 text-zinc-400 font-medium">Status</th>
                     <th className="text-left px-4 py-3 text-zinc-400 font-medium">Outcome</th>
                     <th className="text-left px-4 py-3 text-zinc-400 font-medium">Summary</th>
-                    <th className="text-right px-4 py-3 text-zinc-400 font-medium w-28">Action</th>
+                    <th className="text-right px-4 py-3 text-zinc-400 font-medium w-48">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -730,13 +750,12 @@ export default function CallerPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           {row.status === "pending" ? (
-                            <button
-                              onClick={() => callUpload(row.id)}
-                              disabled={callingIds.has(row.id) || callingAll}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
-                            >
-                              {callingIds.has(row.id) ? "📞 ..." : "📞 Call"}
-                            </button>
+                            <RowActions
+                              rowId={row.id}
+                              calling={callingIds.has(row.id) || callingAll}
+                              onCall={() => callUpload(row.id)}
+                              onSchedule={(dt) => scheduleRow(row.id, dt)}
+                            />
                           ) : row.status === "scheduled" ? (
                             <div className="flex flex-col items-end gap-1">
                               <span className="text-[10px] text-indigo-400">
@@ -900,6 +919,64 @@ function StatCard({
       <div className="text-xs mt-1 opacity-70">
         {icon} {label}
       </div>
+    </div>
+  );
+}
+
+/** Per-row actions: Call Now + Schedule toggle */
+function RowActions({
+  rowId,
+  calling,
+  onCall,
+  onSchedule,
+}: {
+  rowId: string;
+  calling: boolean;
+  onCall: () => void;
+  onSchedule: (mstDateTime: string) => void;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [dt, setDt] = useState("");
+
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={onCall}
+          disabled={calling}
+          className="px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
+        >
+          {calling ? "📞 ..." : "📞 Call"}
+        </button>
+        <button
+          onClick={() => setShowPicker(!showPicker)}
+          className={`px-2 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${
+            showPicker
+              ? "bg-indigo-600 text-white"
+              : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
+          }`}
+          title="Schedule this call"
+        >
+          📅
+        </button>
+      </div>
+      {showPicker && (
+        <div className="flex items-center gap-1.5">
+          <input
+            type="datetime-local"
+            value={dt}
+            onChange={(e) => setDt(e.target.value)}
+            className="px-1.5 py-1 bg-zinc-800 border border-zinc-700 rounded text-white text-[10px] focus:outline-none focus:ring-1 focus:ring-indigo-500 [color-scheme:dark] w-[145px]"
+          />
+          <button
+            disabled={!dt}
+            onClick={() => { onSchedule(dt); setShowPicker(false); setDt(""); }}
+            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white text-[10px] rounded transition-colors cursor-pointer whitespace-nowrap"
+          >
+            Set
+          </button>
+        </div>
+      )}
     </div>
   );
 }
