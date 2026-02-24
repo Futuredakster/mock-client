@@ -30,6 +30,7 @@ type Batch = {
   skipped: string;
   no_answer: string;
   voicemail: string;
+  scheduled: string;
   with_outcome: string;
   uploaded_by_name: string;
   flow_name: string | null;
@@ -47,6 +48,7 @@ type Upload = {
   call_summary: string | null;
   call_duration: number | null;
   called_at: string | null;
+  scheduled_at: string | null;
   created_at: string;
 };
 
@@ -75,6 +77,8 @@ export default function CallerPage() {
   const [callingIds, setCallingIds] = useState<Set<string>>(new Set());
   const [callingAll, setCallingAll] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduling, setScheduling] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -208,6 +212,94 @@ export default function CallerPage() {
     setCallingAll(false);
   };
 
+  // ─── MST helpers ──────────────────────────────────────────
+
+  /** Convert a local datetime-local string to a UTC ISO string assuming the input is MST (UTC-7) */
+  const mstToUtc = (mstStr: string) => {
+    // datetime-local gives "2026-02-24T09:30" — treat as MST = UTC-7
+    const [datePart, timePart] = mstStr.split("T");
+    const [yyyy, mm, dd] = datePart.split("-").map(Number);
+    const [hh, mi] = timePart.split(":").map(Number);
+    const mstDate = new Date(Date.UTC(yyyy, mm - 1, dd, hh + 7, mi)); // +7 to go from MST→UTC
+    return mstDate.toISOString();
+  };
+
+  /** Format a UTC ISO string to MST for display */
+  const utcToMstDisplay = (utcStr: string) => {
+    const d = new Date(utcStr);
+    return d.toLocaleString("en-US", {
+      timeZone: "America/Denver",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }) + " MST";
+  };
+
+  const scheduleBatch = async () => {
+    if (!scheduleDate || !selectedBatch) return;
+    const pending = batchRows.filter((r) => r.status === "pending");
+    if (pending.length === 0) return;
+
+    setScheduling(true);
+    try {
+      const utcTime = mstToUtc(scheduleDate);
+      const res = await fetch(
+        `${serverUrl}/api/uploads/batch/${selectedBatch.batch_id}/schedule`,
+        {
+          method: "PUT",
+          headers: authHeaders(),
+          body: JSON.stringify({ scheduledAt: utcTime }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await fetchBatchRows(selectedBatch.batch_id);
+      fetchBatches();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Scheduling failed");
+    } finally {
+      setScheduling(false);
+    }
+  };
+
+  const unscheduleBatch = async () => {
+    if (!selectedBatch) return;
+    try {
+      const res = await fetch(
+        `${serverUrl}/api/uploads/batch/${selectedBatch.batch_id}/unschedule`,
+        {
+          method: "PUT",
+          headers: authHeaders(),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await fetchBatchRows(selectedBatch.batch_id);
+      fetchBatches();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Cancel failed");
+    }
+  };
+
+  const unscheduleRow = async (uploadId: string) => {
+    try {
+      const res = await fetch(
+        `${serverUrl}/api/uploads/${uploadId}/unschedule`,
+        {
+          method: "PUT",
+          headers: authHeaders(),
+        }
+      );
+      if (!res.ok) throw new Error("Cancel failed");
+      if (selectedBatch) await fetchBatchRows(selectedBatch.batch_id);
+      fetchBatches();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Cancel failed");
+    }
+  };
+
   const goBack = () => {
     if (step === "call-dashboard") {
       setStep("select-data");
@@ -229,6 +321,7 @@ export default function CallerPage() {
       case "failed": return "bg-red-900/40 text-red-300 border-red-700";
       case "no_answer": return "bg-orange-900/40 text-orange-300 border-orange-700";
       case "voicemail": return "bg-purple-900/40 text-purple-300 border-purple-700";
+      case "scheduled": return "bg-indigo-900/40 text-indigo-300 border-indigo-700";
       default: return "bg-zinc-800 text-zinc-400 border-zinc-700";
     }
   };
@@ -266,6 +359,8 @@ export default function CallerPage() {
   const pendingCount = batchRows.filter((r) => r.status === "pending").length;
   const callingCount = batchRows.filter((r) => r.status === "calling").length;
   const completedCount = batchRows.filter((r) => r.status === "completed").length;
+  const scheduledCount = batchRows.filter((r) => r.status === "scheduled").length;
+  const scheduledTime = batchRows.find((r) => r.status === "scheduled" && r.scheduled_at)?.scheduled_at;
 
   // ─── Render ───────────────────────────────────────────────────
 
@@ -480,34 +575,79 @@ export default function CallerPage() {
             </div>
 
             {/* Stats bar */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-5 gap-3">
               <StatCard label="Pending" value={pendingCount} color="yellow" icon="⏳" />
+              <StatCard label="Scheduled" value={scheduledCount} color="indigo" icon="📅" />
               <StatCard label="Calling" value={callingCount} color="blue" icon="📞" />
               <StatCard label="Completed" value={completedCount} color="green" icon="✅" />
               <StatCard label="Total" value={batchRows.length} color="zinc" icon="📊" />
             </div>
 
-            {/* Call All button */}
+            {/* Call / Schedule actions */}
             {pendingCount > 0 && (
-              <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4">
+                {/* Call All Now */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Ready to call {pendingCount} contacts</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Calls will be made sequentially with a 2-second delay
+                    </p>
+                  </div>
+                  <button
+                    onClick={callAllPending}
+                    disabled={callingAll}
+                    className="px-5 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-2"
+                  >
+                    {callingAll ? (
+                      <><span className="animate-pulse">📞</span> Calling...</>
+                    ) : (
+                      <>📞 Call All Now</>
+                    )}
+                  </button>
+                </div>
+
+                {/* Schedule for later */}
+                <div className="border-t border-zinc-800 pt-4">
+                  <p className="text-sm font-medium text-zinc-300 mb-2">📅 Or schedule for later (MST)</p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <input
+                      type="datetime-local"
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:dark]"
+                    />
+                    <span className="text-xs text-zinc-500">Mountain Standard Time</span>
+                    <button
+                      onClick={scheduleBatch}
+                      disabled={!scheduleDate || scheduling}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors cursor-pointer flex items-center gap-2"
+                    >
+                      {scheduling ? (
+                        <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg> Scheduling...</>
+                      ) : (
+                        <>📅 Schedule {pendingCount} Calls</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Scheduled banner */}
+            {scheduledCount > 0 && scheduledTime && (
+              <div className="bg-indigo-900/20 border border-indigo-700/50 rounded-xl p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium">Ready to call {pendingCount} contacts</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Calls will be made sequentially with a 2-second delay between each
+                  <p className="font-medium text-indigo-300">📅 {scheduledCount} call{scheduledCount > 1 ? "s" : ""} scheduled</p>
+                  <p className="text-xs text-indigo-400/70 mt-0.5">
+                    Fires at {utcToMstDisplay(scheduledTime)} — the server will auto-dial when the time arrives
                   </p>
                 </div>
                 <button
-                  onClick={callAllPending}
-                  disabled={callingAll}
-                  className="px-5 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-zinc-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-2"
+                  onClick={unscheduleBatch}
+                  className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
                 >
-                  {callingAll ? (
-                    <>
-                      <span className="animate-pulse">📞</span> Calling...
-                    </>
-                  ) : (
-                    <>📞 Call All Pending</>
-                  )}
+                  ✕ Cancel Schedule
                 </button>
               </div>
             )}
@@ -554,7 +694,7 @@ export default function CallerPage() {
                         <td className="px-4 py-3 text-indigo-300 font-mono text-xs">{row.phone_number}</td>
                         <td className="px-4 py-3">
                           <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColor(row.status)}`}>
-                            {row.status}
+                            {row.status === "scheduled" ? "📅 scheduled" : row.status}
                           </span>
                           {row.status === "calling" && (
                             <span className="ml-1.5 text-blue-400 animate-pulse text-xs">●</span>
@@ -597,6 +737,18 @@ export default function CallerPage() {
                             >
                               {callingIds.has(row.id) ? "📞 ..." : "📞 Call"}
                             </button>
+                          ) : row.status === "scheduled" ? (
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="text-[10px] text-indigo-400">
+                                {row.scheduled_at ? utcToMstDisplay(row.scheduled_at) : "Scheduled"}
+                              </span>
+                              <button
+                                onClick={() => unscheduleRow(row.id)}
+                                className="px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white text-[10px] rounded transition-colors cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           ) : row.status === "calling" ? (
                             <span className="text-xs text-blue-400 animate-pulse">In progress</span>
                           ) : row.status === "completed" ? (
@@ -678,6 +830,7 @@ function BatchCard({
             <div className="flex items-center gap-3 mt-2 text-xs">
               {pending > 0 && <span className="text-yellow-400">⏳ {pending} pending</span>}
               {Number(batch.calling) > 0 && <span className="text-blue-400">📞 {batch.calling} calling</span>}
+              {Number(batch.scheduled || 0) > 0 && <span className="text-indigo-400">📅 {batch.scheduled} scheduled</span>}
               {completed > 0 && <span className="text-green-400">✅ {completed} completed</span>}
               {Number(batch.failed) > 0 && <span className="text-red-400">❌ {batch.failed} failed</span>}
               {Number(batch.no_answer) > 0 && <span className="text-orange-400">☎️ {batch.no_answer} no answer</span>}
@@ -737,6 +890,7 @@ function StatCard({
     yellow: "bg-yellow-900/20 border-yellow-800/50 text-yellow-300",
     blue: "bg-blue-900/20 border-blue-800/50 text-blue-300",
     green: "bg-green-900/20 border-green-800/50 text-green-300",
+    indigo: "bg-indigo-900/20 border-indigo-800/50 text-indigo-300",
     zinc: "bg-zinc-900 border-zinc-800 text-zinc-300",
   };
 
