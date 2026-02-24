@@ -55,7 +55,7 @@ export default function NavBar() {
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-zinc-950/70 backdrop-blur-xl supports-[backdrop-filter]:bg-zinc-950/60">
+    <nav className="sticky top-0 z-50 border-b border-indigo-500/10 bg-[#0c0a1a]/80 backdrop-blur-xl supports-[backdrop-filter]:bg-[#0c0a1a]/70">
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           {/* Left — Logo + Links */}
@@ -80,14 +80,14 @@ export default function NavBar() {
                     href={link.href}
                     className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
                       active
-                        ? "text-white bg-white/[0.08]"
-                        : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
+                        ? "text-white bg-indigo-500/[0.12]"
+                        : "text-indigo-200/50 hover:text-indigo-100 hover:bg-indigo-500/[0.07]"
                     }`}
                   >
-                    <span className={active ? "text-indigo-400" : "text-zinc-500"}>{link.icon}</span>
+                    <span className={active ? "text-indigo-400" : "text-indigo-300/30"}>{link.icon}</span>
                     {link.label}
                     {active && (
-                      <span className="absolute -bottom-[9px] left-3 right-3 h-[2px] bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full" />
+                      <span className="absolute -bottom-[9px] left-3 right-3 h-[2px] bg-gradient-to-r from-indigo-400 to-violet-400 rounded-full" />
                     )}
                   </Link>
                 );
@@ -97,12 +97,12 @@ export default function NavBar() {
 
           {/* Right — User + Logout */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-indigo-500/[0.06] border border-indigo-500/[0.1]">
               {/* Avatar */}
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
                 {user.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
-              <span className="text-[12px] text-zinc-400 hidden sm:block max-w-[120px] truncate">
+              <span className="text-[12px] text-indigo-200/60 hidden sm:block max-w-[120px] truncate">
                 {user.name}
               </span>
               {user.role === "admin" && (
@@ -113,18 +113,19 @@ export default function NavBar() {
             </div>
             <button
               onClick={logout}
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-400/10 transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-indigo-300/70 hover:text-red-400 hover:bg-red-400/10 transition-all cursor-pointer text-[12px]"
               title="Logout"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
               </svg>
+              <span className="hidden sm:inline">Logout</span>
             </button>
 
             {/* Mobile hamburger */}
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="md:hidden p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
+              className="md:hidden p-1.5 rounded-lg text-indigo-200/50 hover:text-white hover:bg-indigo-500/[0.07] transition-all cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
                 {mobileOpen ? (
@@ -139,7 +140,7 @@ export default function NavBar() {
 
         {/* Mobile dropdown */}
         {mobileOpen && (
-          <div className="md:hidden border-t border-white/[0.06] py-2 space-y-0.5">
+          <div className="md:hidden border-t border-indigo-500/10 py-2 space-y-0.5">
             {navLinks.map((link) => {
               const active = isActive(link.href);
               return (
@@ -149,11 +150,11 @@ export default function NavBar() {
                   onClick={() => setMobileOpen(false)}
                   className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                     active
-                      ? "text-white bg-white/[0.08]"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
+                      ? "text-white bg-indigo-500/[0.12]"
+                      : "text-indigo-200/50 hover:text-indigo-100 hover:bg-indigo-500/[0.07]"
                   }`}
                 >
-                  <span className={active ? "text-indigo-400" : "text-zinc-500"}>{link.icon}</span>
+                  <span className={active ? "text-indigo-400" : "text-indigo-300/30"}>{link.icon}</span>
                   {link.label}
                 </Link>
               );
