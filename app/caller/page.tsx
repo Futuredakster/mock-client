@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -69,6 +69,12 @@ export default function CallerPage() {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [batchRows, setBatchRows] = useState<Upload[]>([]);
+  const [filteredTotal, setFilteredTotal] = useState(0);
+  const [batchStats, setBatchStats] = useState<{
+    total: number; pending: number; calling: number;
+    completed: number; scheduled: number; failed: number;
+    nextScheduledAt: string | null;
+  }>({ total: 0, pending: 0, calling: 0, completed: 0, scheduled: 0, failed: 0, nextScheduledAt: null });
 
   // Flow variables expected by the selected flow
   const [flowVariables, setFlowVariables] = useState<string[]>([]);
@@ -79,6 +85,25 @@ export default function CallerPage() {
   const [assigning, setAssigning] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduling, setScheduling] = useState(false);
+
+  // Search & pagination
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
+  const searchRef = useRef(debouncedSearch);
+  const pageRef = useRef(currentPage);
+  searchRef.current = debouncedSearch;
+  pageRef.current = currentPage;
+
+  // Debounce search input → triggers server fetch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -117,15 +142,30 @@ export default function CallerPage() {
 
   // ─── Fetch Batch Rows ────────────────────────────────────────
 
-  const fetchBatchRows = useCallback(async (batchId: string) => {
+  const fetchBatchRows = useCallback(async (batchId: string, search?: string, page?: number) => {
     if (!token) return;
+    const s = search ?? searchRef.current;
+    const p = page ?? pageRef.current;
     try {
-      const res = await fetch(`${serverUrl}/api/uploads/batch/${batchId}`, {
+      const params = new URLSearchParams({ page: String(p), pageSize: String(pageSize) });
+      if (s) params.set("search", s);
+      const res = await fetch(`${serverUrl}/api/uploads/batch/${batchId}?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setBatchRows(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setBatchRows(data.rows);
+        setFilteredTotal(data.filteredTotal);
+        setBatchStats(data.stats);
+      }
     } catch {}
   }, [token, serverUrl]);
+
+  // Re-fetch when search or page changes
+  useEffect(() => {
+    if (step !== "call-dashboard" || !selectedBatch) return;
+    fetchBatchRows(selectedBatch.batch_id, debouncedSearch, currentPage);
+  }, [debouncedSearch, currentPage, step, selectedBatch, fetchBatchRows]);
 
   // Auto-refresh rows while on call dashboard
   useEffect(() => {
@@ -325,6 +365,9 @@ export default function CallerPage() {
       setStep("select-data");
       setBatchRows([]);
       setSelectedBatch(null);
+      setSearchQuery("");
+      setDebouncedSearch("");
+      setCurrentPage(1);
     } else if (step === "select-data") {
       setStep("select-flow");
       setSelectedFlow(null);
@@ -376,11 +419,12 @@ export default function CallerPage() {
       }
     : { assigned: [], unassigned: [] };
 
-  const pendingCount = batchRows.filter((r) => r.status === "pending").length;
-  const callingCount = batchRows.filter((r) => r.status === "calling").length;
-  const completedCount = batchRows.filter((r) => r.status === "completed").length;
-  const scheduledCount = batchRows.filter((r) => r.status === "scheduled").length;
-  const scheduledTime = batchRows.find((r) => r.status === "scheduled" && r.scheduled_at)?.scheduled_at;
+  // Stats from server (always for full batch, not filtered)
+  const { pending: pendingCount, calling: callingCount, completed: completedCount, scheduled: scheduledCount, nextScheduledAt: scheduledTime, total: totalCount } = batchStats;
+
+  // Pagination derived from server totals
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
 
   // ─── Render ───────────────────────────────────────────────────
 
@@ -586,7 +630,7 @@ export default function CallerPage() {
               <div>
                 <h1 className="text-2xl font-bold">🎯 Call Dashboard</h1>
                 <p className="text-zinc-400 text-sm mt-1">
-                  {selectedFlow.name} · {batchRows.length} contacts
+                  {selectedFlow.name} · {totalCount} contacts
                 </p>
               </div>
               <button onClick={goBack} className="text-sm text-zinc-500 hover:text-white transition-colors cursor-pointer">
@@ -600,7 +644,7 @@ export default function CallerPage() {
               <StatCard label="Scheduled" value={scheduledCount} color="indigo" icon="📅" />
               <StatCard label="Calling" value={callingCount} color="blue" icon="📞" />
               <StatCard label="Completed" value={completedCount} color="green" icon="✅" />
-              <StatCard label="Total" value={batchRows.length} color="zinc" icon="📊" />
+              <StatCard label="Total" value={totalCount} color="zinc" icon="📊" />
             </div>
 
             {/* Call / Schedule actions */}
@@ -677,6 +721,37 @@ export default function CallerPage() {
                 Assigning flow to batch...
               </div>
             )}
+
+            {/* Search bar */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.65 4.65a7.5 7.5 0 0012 12z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search by name or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-600 transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <span className="text-xs text-zinc-500 whitespace-nowrap">
+                {filteredTotal === totalCount
+                  ? `${totalCount} contacts`
+                  : `${filteredTotal} of ${totalCount} contacts`}
+              </span>
+            </div>
 
             {/* Contacts table */}
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
@@ -781,10 +856,78 @@ export default function CallerPage() {
                   })}
                 </tbody>
               </table>
-              {batchRows.length === 0 && (
+              {totalCount === 0 && (
                 <div className="p-8 text-center text-zinc-500 text-sm">No contacts in this batch</div>
               )}
+              {totalCount > 0 && filteredTotal === 0 && (
+                <div className="p-8 text-center text-zinc-500 text-sm">
+                  No contacts match &quot;{searchQuery}&quot;
+                </div>
+              )}
             </div>
+
+            {/* Pagination controls */}
+            {filteredTotal > pageSize && (
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs text-zinc-500">
+                  Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filteredTotal)} of {filteredTotal}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safePage <= 1}
+                    className="px-2 py-1.5 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    ««
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className="px-2.5 py-1.5 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    ‹ Prev
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+                    .reduce<(number | "dot")[]>((acc, p, idx, arr) => {
+                      if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("dot");
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === "dot" ? (
+                        <span key={`dot-${idx}`} className="px-1.5 text-xs text-zinc-600">…</span>
+                      ) : (
+                        <button
+                          key={item}
+                          onClick={() => setCurrentPage(item as number)}
+                          className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors cursor-pointer ${
+                            safePage === item
+                              ? "bg-indigo-600 border-indigo-500 text-white font-medium"
+                              : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-600"
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className="px-2.5 py-1.5 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    Next ›
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safePage >= totalPages}
+                    className="px-2 py-1.5 text-xs rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    »»
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
