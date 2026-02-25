@@ -146,7 +146,10 @@ export default function UploadsPage() {
       const res = await fetch(`${serverUrl}/api/uploads/batch/${batchId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setBatchRows(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setBatchRows(data.rows ?? data);
+      }
     } catch {}
   };
 
