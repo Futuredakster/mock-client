@@ -112,7 +112,7 @@ export default function DashboardPage() {
       {/* ── Stat Cards ───────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Total Contacts"
+          label="Total Campaigns"
           value={stats.totalUploads}
           change={stats.pendingCalls > 0 ? `${stats.pendingCalls} pending` : "All processed"}
           changeType={stats.pendingCalls > 0 ? "warning" : "success"}
@@ -204,13 +204,13 @@ export default function DashboardPage() {
               </svg>
             </div>
             <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>No campaigns yet</p>
-            <p className="text-xs mb-4" style={{ color: "var(--text-tertiary)" }}>Upload contacts and create your first campaign</p>
+            <p className="text-xs mb-4" style={{ color: "var(--text-tertiary)" }}>Create your first campaign by uploading contact data</p>
             <Link
               href="/uploads"
               className="inline-block px-4 py-2 rounded-lg text-sm font-medium text-white"
               style={{ background: "var(--accent)" }}
             >
-              Upload Contacts
+              New Campaign
             </Link>
           </div>
         ) : (
@@ -299,8 +299,8 @@ export default function DashboardPage() {
         <QuickAction
           href="/uploads"
           icon={<ContactsStatIcon />}
-          title="Contacts"
-          sub="Import & manage contacts"
+          title="Campaigns"
+          sub="Import & manage campaigns"
         />
         <QuickAction
           href="/caller"
