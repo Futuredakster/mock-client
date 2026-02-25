@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import NavBar from "@/components/nav-bar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
@@ -27,11 +29,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased`}
+        style={{ fontFamily: "'DM Sans', sans-serif" }}
       >
         <AuthProvider>
           <NavBar />
-          {children}
+          {/* Main content area offset by sidebar on desktop, by top bar on mobile */}
+          <main
+            className="min-h-screen lg:ml-[var(--sidebar-width)] pt-14 lg:pt-0"
+            style={{ background: "var(--bg-primary)" }}
+          >
+            {children}
+          </main>
         </AuthProvider>
       </body>
     </html>
