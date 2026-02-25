@@ -90,6 +90,7 @@ export default function CallerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [batchSearch, setBatchSearch] = useState("");
   const pageSize = 15;
   const searchRef = useRef(debouncedSearch);
   const pageRef = useRef(currentPage);
@@ -371,6 +372,7 @@ export default function CallerPage() {
     } else if (step === "select-data") {
       setStep("select-flow");
       setSelectedFlow(null);
+      setBatchSearch("");
     }
   };
 
@@ -412,12 +414,25 @@ export default function CallerPage() {
     return { matched, missing, extra };
   };
 
+  const batchFilterFn = (b: Batch) => {
+    if (!batchSearch.trim()) return true;
+    const q = batchSearch.toLowerCase();
+    const name = (b.batch_name || "").toLowerCase();
+    const date = new Date(b.uploaded_at).toLocaleDateString().toLowerCase();
+    const contacts = `${b.total_rows} contacts`.toLowerCase();
+    return name.includes(q) || date.includes(q) || contacts.includes(q);
+  };
+
   const batchesForFlow = selectedFlow
     ? {
-        assigned: batches.filter((b) => b.flow_id === selectedFlow.id),
-        unassigned: batches.filter((b) => !b.flow_id && Number(b.pending) > 0),
+        assigned: batches.filter((b) => b.flow_id === selectedFlow.id).filter(batchFilterFn),
+        unassigned: batches.filter((b) => !b.flow_id && Number(b.pending) > 0).filter(batchFilterFn),
       }
     : { assigned: [], unassigned: [] };
+
+  const totalBatchesForFlow = selectedFlow
+    ? batches.filter((b) => b.flow_id === selectedFlow.id || (!b.flow_id && Number(b.pending) > 0)).length
+    : 0;
 
   // Stats from server (always for full batch, not filtered)
   const { pending: pendingCount, calling: callingCount, completed: completedCount, scheduled: scheduledCount, nextScheduledAt: scheduledTime, total: totalCount } = batchStats;
@@ -575,6 +590,39 @@ export default function CallerPage() {
               </div>
             )}
 
+            {/* Batch search */}
+            {totalBatchesForFlow > 3 && (
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.65 4.65a7.5 7.5 0 0012 12z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search batches by name or date..."
+                    value={batchSearch}
+                    onChange={(e) => setBatchSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-white text-sm placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-600 transition-all"
+                  />
+                  {batchSearch && (
+                    <button
+                      onClick={() => setBatchSearch("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                <span className="text-xs text-zinc-500 whitespace-nowrap">
+                  {batchesForFlow.assigned.length + batchesForFlow.unassigned.length === totalBatchesForFlow
+                    ? `${totalBatchesForFlow} batches`
+                    : `${batchesForFlow.assigned.length + batchesForFlow.unassigned.length} of ${totalBatchesForFlow} batches`}
+                </span>
+              </div>
+            )}
+
             {batchesForFlow.assigned.length > 0 && (
               <div className="space-y-3">
                 <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">
@@ -602,7 +650,7 @@ export default function CallerPage() {
               </div>
             )}
 
-            {batchesForFlow.assigned.length === 0 && batchesForFlow.unassigned.length === 0 && (
+            {batchesForFlow.assigned.length === 0 && batchesForFlow.unassigned.length === 0 && !batchSearch && (
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center">
                 <div className="text-4xl mb-4">📋</div>
                 <h3 className="text-lg font-semibold mb-2">No contact data available</h3>
@@ -615,6 +663,12 @@ export default function CallerPage() {
                 >
                   Go to Contacts →
                 </Link>
+              </div>
+            )}
+
+            {batchesForFlow.assigned.length === 0 && batchesForFlow.unassigned.length === 0 && batchSearch && (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8 text-center">
+                <p className="text-zinc-500 text-sm">No batches match &quot;{batchSearch}&quot;</p>
               </div>
             )}
           </div>
