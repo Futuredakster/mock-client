@@ -130,6 +130,8 @@ export default function UploadsPage() {
       setPhoneColumn("");
       setBatchName("");
       fetchBatches();
+      // Auto-redirect to Call Center after 2 seconds
+      setTimeout(() => router.push("/caller"), 2000);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -305,7 +307,13 @@ export default function UploadsPage() {
                 {uploadResult.insertedRows} rows inserted
                 {uploadResult.skippedRows > 0 && `, ${uploadResult.skippedRows} skipped (no phone)`}
               </p>
-              <p className="text-xs text-green-400/70 mt-1">Batch ID: {uploadResult.batchId}</p>
+              <p className="text-xs text-green-400/70 mt-1 mb-3">Redirecting to Call Center...</p>
+              <button
+                onClick={() => router.push("/caller")}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors cursor-pointer"
+              >
+                📞 Go to Call Center →
+              </button>
             </div>
           )}
         </div>
