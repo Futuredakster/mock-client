@@ -47,6 +47,7 @@ type Campaign = {
   max_concurrent: number;
   retry_no_answer: boolean;
   retry_attempts: number;
+  retry_interval_minutes: number;
   calling_window_start: string | null;
   calling_window_end: string | null;
   status: string;
@@ -104,6 +105,7 @@ export default function CampaignsPage() {
   const [wizardSchedule, setWizardSchedule] = useState("");
   const [wizardMaxConcurrent, setWizardMaxConcurrent] = useState(1);
   const [wizardRetryAttempts, setWizardRetryAttempts] = useState(0);
+  const [wizardRetryInterval, setWizardRetryInterval] = useState(5);
   const [wizardWindowStart, setWizardWindowStart] = useState("09:00");
   const [wizardWindowEnd, setWizardWindowEnd] = useState("17:00");
   const [wizardWindowEnabled, setWizardWindowEnabled] = useState(false);
@@ -262,6 +264,7 @@ export default function CampaignsPage() {
     setWizardSchedule("");
     setWizardMaxConcurrent(1);
     setWizardRetryAttempts(0);
+    setWizardRetryInterval(5);
     setWizardWindowEnabled(false);
     setWizardWindowStart("09:00");
     setWizardWindowEnd("17:00");
@@ -299,6 +302,7 @@ export default function CampaignsPage() {
         batchId: wizardBatch.batch_id,
         maxConcurrent: wizardMaxConcurrent,
         retryAttempts: wizardRetryAttempts,
+        retryInterval: wizardRetryInterval,
       };
       if (wizardWindowEnabled) {
         body.callingWindowStart = wizardWindowStart;
@@ -356,6 +360,7 @@ export default function CampaignsPage() {
 
     const maxC = selectedCampaign?.max_concurrent || 1;
     const retryAttempts = selectedCampaign?.retry_attempts || 0;
+    const retryIntervalMs = ((selectedCampaign?.retry_interval_minutes || 5) * 60 * 1000);
 
     setCallingAll(true);
 
@@ -391,8 +396,8 @@ export default function CampaignsPage() {
             });
           } catch {}
         }
-        // Small delay before retry round
-        await new Promise((r) => setTimeout(r, 3000));
+        // Wait for retry interval before next round
+        await new Promise((r) => setTimeout(r, retryIntervalMs));
         // Call them again with concurrency
         for (let i = 0; i < noAnswerRows.length; i += maxC) {
           const batch = noAnswerRows.slice(i, i + maxC);
@@ -725,7 +730,7 @@ export default function CampaignsPage() {
                       ? `${selectedCampaign?.max_concurrent} concurrent calls`
                       : "Sequential calls"
                     }
-                    {(selectedCampaign?.retry_attempts || 0) > 0 && ` · Retry ${selectedCampaign?.retry_attempts}×`}
+                    {(selectedCampaign?.retry_attempts || 0) > 0 && ` · Retry ${selectedCampaign?.retry_attempts}× every ${selectedCampaign?.retry_interval_minutes || 5}min`}
                     {selectedCampaign?.calling_window_start && selectedCampaign?.calling_window_end && ` · ${selectedCampaign.calling_window_start}–${selectedCampaign.calling_window_end} MST`}
                   </p>
                 </div>
@@ -1228,13 +1233,13 @@ export default function CampaignsPage() {
 
                   {/* Retry Unanswered Calls */}
                   <div className="rounded-lg border p-4" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Retry unanswered calls</p>
-                        <p className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-                          Automatically retry contacts who don&apos;t pick up
-                        </p>
-                      </div>
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Retry unanswered calls</p>
+                      <p className="text-xs mt-0.5 mb-3" style={{ color: "var(--text-tertiary)" }}>
+                        Automatically retry contacts who don&apos;t pick up
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
                       <select
                         value={wizardRetryAttempts}
                         onChange={(e) => setWizardRetryAttempts(parseInt(e.target.value))}
@@ -1252,6 +1257,26 @@ export default function CampaignsPage() {
                         <option value={3}>Retry 3 times</option>
                         <option value={5}>Retry 5 times</option>
                       </select>
+                      {wizardRetryAttempts > 0 && (
+                        <select
+                          value={wizardRetryInterval}
+                          onChange={(e) => setWizardRetryInterval(parseInt(e.target.value))}
+                          className="px-3 py-2 rounded-lg text-sm focus:outline-none cursor-pointer"
+                          style={{
+                            background: "var(--bg-hover)",
+                            border: "1px solid var(--border-primary)",
+                            color: "var(--accent)",
+                            minWidth: 160,
+                          }}
+                        >
+                          <option value={1}>Every 1 minute</option>
+                          <option value={5}>Every 5 minutes</option>
+                          <option value={10}>Every 10 minutes</option>
+                          <option value={15}>Every 15 minutes</option>
+                          <option value={30}>Every 30 minutes</option>
+                          <option value={60}>Every 1 hour</option>
+                        </select>
+                      )}
                     </div>
                   </div>
 
@@ -1346,7 +1371,7 @@ export default function CampaignsPage() {
                       <span className="font-medium" style={{ color: "var(--text-primary)" }}>{wizardMaxConcurrent} call{wizardMaxConcurrent > 1 ? "s" : ""} at a time</span>
                       <span style={{ color: "var(--text-secondary)" }}>Retry:</span>
                       <span className="font-medium" style={{ color: wizardRetryAttempts > 0 ? "var(--accent)" : "var(--text-tertiary)" }}>
-                        {wizardRetryAttempts > 0 ? `${wizardRetryAttempts}× retry unanswered` : "No retries"}
+                        {wizardRetryAttempts > 0 ? `${wizardRetryAttempts}× every ${wizardRetryInterval} min` : "No retries"}
                       </span>
                       <span style={{ color: "var(--text-secondary)" }}>Calling window:</span>
                       <span className="font-medium" style={{ color: wizardWindowEnabled ? "var(--accent)" : "var(--text-tertiary)" }}>
