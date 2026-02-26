@@ -102,6 +102,7 @@ export default function CampaignsPage() {
   // Data for wizard
   const [flows, setFlows] = useState<Flow[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [flowVariables, setFlowVariables] = useState<string[]>([]);
 
   // Campaign detail state
   const [detailRows, setDetailRows] = useState<Upload[]>([]);
@@ -250,10 +251,24 @@ export default function CampaignsPage() {
     setWizardBatch(null);
     setWizardSchedule("");
     setWizardCreating(false);
+    setFlowVariables([]);
     setShowWizard(true);
     fetchFlows();
     fetchBatches();
   };
+
+  // Fetch flow variables when a flow is selected
+  const fetchFlowVariables = useCallback(async (flowId: string) => {
+    try {
+      const res = await fetch(`${serverUrl}/api/flows/${flowId}/variables`);
+      if (res.ok) {
+        const data = await res.json();
+        setFlowVariables(data.variables || []);
+      }
+    } catch {
+      setFlowVariables([]);
+    }
+  }, [serverUrl]);
 
   const closeWizard = () => {
     setShowWizard(false);
@@ -990,7 +1005,7 @@ export default function CampaignsPage() {
                       {flows.map((flow) => (
                         <button
                           key={flow.id}
-                          onClick={() => setWizardFlow(flow)}
+                          onClick={() => { setWizardFlow(flow); setWizardBatch(null); fetchFlowVariables(flow.id); }}
                           className="w-full text-left rounded-lg border p-4 transition-all cursor-pointer"
                           style={{
                             background: wizardFlow?.id === flow.id ? "var(--accent-muted)" : "var(--bg-tertiary)",
@@ -1018,56 +1033,100 @@ export default function CampaignsPage() {
               )}
 
               {/* Step 3: Select Contacts (existing upload) */}
-              {wizardStep === 3 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium mb-3" style={{ color: "var(--text-secondary)" }}>Select a contact list</p>
-                  {batches.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm mb-3" style={{ color: "var(--text-secondary)" }}>No contact lists uploaded yet</p>
-                      <Link href="/uploads" className="text-sm font-medium" style={{ color: "var(--accent)" }}>Go to Contacts →</Link>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 max-h-[35vh] overflow-y-auto">
-                      {batches.map((batch) => {
-                        const total = Number(batch.total_rows);
-                        const pending = Number(batch.pending);
-                        const isSelected = wizardBatch?.batch_id === batch.batch_id;
+              {wizardStep === 3 && (() => {
+                // Compute match info for each batch
+                const batchMatchInfo = batches.map((batch) => {
+                  const fields = (batch.data_fields || []).map((f) => f.toLowerCase());
+                  const matched = flowVariables.filter((v) => fields.includes(v.toLowerCase()));
+                  const missing = flowVariables.filter((v) => !fields.includes(v.toLowerCase()));
+                  const isCompatible = flowVariables.length === 0 || missing.length === 0;
+                  return { batch, matched, missing, isCompatible };
+                });
 
-                        return (
-                          <button
-                            key={batch.batch_id}
-                            onClick={() => setWizardBatch(batch)}
-                            className="w-full text-left rounded-lg border p-4 transition-all cursor-pointer"
-                            style={{
-                              background: isSelected ? "var(--accent-muted)" : "var(--bg-tertiary)",
-                              borderColor: isSelected ? "var(--accent)" : "var(--border-primary)",
-                            }}
-                            onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "var(--accent)"; }}
-                            onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "var(--border-primary)"; }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
-                                  {batch.batch_name || `Upload ${new Date(batch.uploaded_at).toLocaleDateString()}`}
-                                </div>
-                                <div className="flex items-center gap-3 mt-1 text-xs">
-                                  <span style={{ color: "var(--text-secondary)" }}>{total} contacts</span>
-                                  {pending > 0 && <span style={{ color: "var(--warning)" }}>⏳ {pending} pending</span>}
-                                  {Number(batch.completed) > 0 && <span style={{ color: "var(--success)" }}>✅ {batch.completed} completed</span>}
-                                  {batch.flow_name && <span style={{ color: "var(--text-tertiary)" }}>Flow: {batch.flow_name}</span>}
-                                </div>
-                              </div>
-                              {isSelected && (
-                                <span className="text-sm" style={{ color: "var(--accent)" }}>✓</span>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
+                return (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium mb-1" style={{ color: "var(--text-secondary)" }}>Select a contact list</p>
+                      {flowVariables.length > 0 && (
+                        <p className="text-xs mb-3" style={{ color: "var(--text-tertiary)" }}>
+                          Flow expects: {flowVariables.map((v, i) => (
+                            <span key={v}>
+                              <span className="font-mono px-1 py-0.5 rounded" style={{ background: "var(--accent-muted)", color: "var(--accent)" }}>{`{${v}}`}</span>
+                              {i < flowVariables.length - 1 ? " " : ""}
+                            </span>
+                          ))}
+                        </p>
+                      )}
                     </div>
-                  )}
-                </div>
-              )}
+                    {batches.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-sm mb-3" style={{ color: "var(--text-secondary)" }}>No contact lists uploaded yet</p>
+                        <Link href="/uploads" className="text-sm font-medium" style={{ color: "var(--accent)" }}>Go to Contacts →</Link>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-[35vh] overflow-y-auto">
+                        {batchMatchInfo.map(({ batch, matched, missing, isCompatible }) => {
+                          const total = Number(batch.total_rows);
+                          const pending = Number(batch.pending);
+                          const isSelected = wizardBatch?.batch_id === batch.batch_id;
+
+                          return (
+                            <button
+                              key={batch.batch_id}
+                              onClick={() => isCompatible && setWizardBatch(batch)}
+                              className={`w-full text-left rounded-lg border p-4 transition-all ${isCompatible ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}
+                              style={{
+                                background: isSelected ? "var(--accent-muted)" : !isCompatible ? "var(--bg-secondary)" : "var(--bg-tertiary)",
+                                borderColor: isSelected ? "var(--accent)" : !isCompatible ? "rgba(248,113,113,0.3)" : "var(--border-primary)",
+                              }}
+                              onMouseEnter={(e) => { if (!isSelected && isCompatible) e.currentTarget.style.borderColor = "var(--accent)"; }}
+                              onMouseLeave={(e) => { if (!isSelected && isCompatible) e.currentTarget.style.borderColor = "var(--border-primary)"; if (!isCompatible) e.currentTarget.style.borderColor = "rgba(248,113,113,0.3)"; }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
+                                    {batch.batch_name || `Upload ${new Date(batch.uploaded_at).toLocaleDateString()}`}
+                                  </div>
+                                  <div className="flex items-center gap-3 mt-1 text-xs flex-wrap">
+                                    <span style={{ color: "var(--text-secondary)" }}>{total} contacts</span>
+                                    {pending > 0 && <span style={{ color: "var(--warning)" }}>⏳ {pending} pending</span>}
+                                    {Number(batch.completed) > 0 && <span style={{ color: "var(--success)" }}>✅ {batch.completed} completed</span>}
+                                    {batch.flow_name && <span style={{ color: "var(--text-tertiary)" }}>Flow: {batch.flow_name}</span>}
+                                  </div>
+                                  {/* Field match indicators */}
+                                  {flowVariables.length > 0 && (
+                                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                                      {isCompatible ? (
+                                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(52,211,153,0.12)", color: "var(--success)" }}>
+                                          ✓ All fields match
+                                        </span>
+                                      ) : (
+                                        <>
+                                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(248,113,113,0.12)", color: "var(--danger)" }}>
+                                            ✕ Missing: {missing.join(", ")}
+                                          </span>
+                                          {matched.length > 0 && (
+                                            <span className="text-[11px]" style={{ color: "var(--text-tertiary)" }}>
+                                              ({matched.length}/{flowVariables.length} matched)
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {isSelected && (
+                                  <span className="text-sm flex-shrink-0" style={{ color: "var(--accent)" }}>✓</span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Step 4: Schedule (optional) */}
               {wizardStep === 4 && (
