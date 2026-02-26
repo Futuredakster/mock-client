@@ -105,14 +105,14 @@ export default function DashboardPage() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
-          New Campaign
+          New Contact List
         </Link>
       </div>
 
       {/* ── Stat Cards ───────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Total Campaigns"
+          label="Total Contacts"
           value={stats.totalUploads}
           change={stats.pendingCalls > 0 ? `${stats.pendingCalls} pending` : "All processed"}
           changeType={stats.pendingCalls > 0 ? "warning" : "success"}
@@ -184,7 +184,7 @@ export default function DashboardPage() {
       {/* ── Recent Batches Table ────────────────────────────── */}
       <div className="rounded-xl border overflow-hidden" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--border-primary)" }}>
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Recent Campaigns</h2>
+          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Recent Contacts</h2>
           <Link
             href="/uploads"
             className="text-xs font-medium transition-colors"
@@ -203,21 +203,21 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5" />
               </svg>
             </div>
-            <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>No campaigns yet</p>
-            <p className="text-xs mb-4" style={{ color: "var(--text-tertiary)" }}>Create your first campaign by uploading contact data</p>
+            <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>No contacts yet</p>
+            <p className="text-xs mb-4" style={{ color: "var(--text-tertiary)" }}>Create your first contact list by uploading data</p>
             <Link
               href="/uploads"
               className="inline-block px-4 py-2 rounded-lg text-sm font-medium text-white"
               style={{ background: "var(--accent)" }}
             >
-              New Campaign
+              New Contact List
             </Link>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border-primary)" }}>
-                <th className="text-left px-5 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>Campaign</th>
+                <th className="text-left px-5 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>Contact List</th>
                 <th className="text-left px-5 py-3 font-medium text-xs uppercase tracking-wider hidden sm:table-cell" style={{ color: "var(--text-tertiary)" }}>Contacts</th>
                 <th className="text-left px-5 py-3 font-medium text-xs uppercase tracking-wider" style={{ color: "var(--text-tertiary)" }}>Progress</th>
                 <th className="text-left px-5 py-3 font-medium text-xs uppercase tracking-wider hidden md:table-cell" style={{ color: "var(--text-tertiary)" }}>Status</th>
@@ -299,8 +299,8 @@ export default function DashboardPage() {
         <QuickAction
           href="/uploads"
           icon={<ContactsStatIcon />}
-          title="Campaigns"
-          sub="Import & manage campaigns"
+          title="Contacts"
+          sub="Import & manage contacts"
         />
         <QuickAction
           href="/caller"

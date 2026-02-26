@@ -277,9 +277,9 @@ export default function UploadsPage() {
       {/* ── Page Header ──────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Campaigns</h1>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>Contacts</h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            Manage your campaigns and upload new data
+            Manage your contacts and upload new data
           </p>
         </div>
         <button
@@ -292,7 +292,7 @@ export default function UploadsPage() {
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
           </svg>
-          New Campaign
+          New Contact List
         </button>
       </div>
 
@@ -305,7 +305,7 @@ export default function UploadsPage() {
             </svg>
             <input
               type="text"
-              placeholder="Search campaigns..."
+              placeholder="Search contacts..."
               value={listSearch}
               onChange={(e) => setListSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm focus:outline-none transition-all"
@@ -333,14 +333,14 @@ export default function UploadsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
               </svg>
             </div>
-            <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>No campaigns yet</p>
+            <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>No contacts yet</p>
             <p className="text-xs mb-4" style={{ color: "var(--text-tertiary)" }}>Upload an Excel file to get started</p>
             <button
               onClick={() => setShowUploadModal(true)}
               className="inline-block px-4 py-2 rounded-lg text-sm font-medium text-white cursor-pointer"
               style={{ background: "var(--accent)" }}
             >
-              Create Your First Campaign
+              Create Your First Contact List
             </button>
           </div>
         ) : (
@@ -555,7 +555,7 @@ export default function UploadsPage() {
           >
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid var(--border-primary)" }}>
-              <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>New Campaign</h2>
+              <h2 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>New Contact List</h2>
               <button
                 onClick={closeUploadModal}
                 className="p-1 rounded-lg transition-colors cursor-pointer"
@@ -722,7 +722,7 @@ export default function UploadsPage() {
                     className="px-5 py-2 rounded-lg text-sm font-medium text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ background: "var(--accent)" }}
                   >
-                    {uploading ? "Creating..." : `Create Campaign (${parsedRows.length} contacts)`}
+                    {uploading ? "Creating..." : `Create Contact List (${parsedRows.length} contacts)`}
                   </button>
                 )}
               </div>
