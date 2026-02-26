@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { useAuth } from "@/lib/auth-context";
 
 
@@ -19,6 +19,7 @@ interface CallLog {
   campaign_name: string | null;
   campaign_id: string | null;
   flow_name: string | null;
+  recording_url: string | null;
 }
 
 interface CampaignOption {
@@ -142,6 +143,11 @@ export default function CallLogsPage() {
   const [loading, setLoading] = useState(true);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+  // Audio playback
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [audioLoading, setAudioLoading] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const totalPages = Math.max(1, Math.ceil(filteredTotal / pageSize));
   const safePage = Math.min(currentPage, totalPages);
 
@@ -182,6 +188,65 @@ export default function CallLogsPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, outcomeFilter, campaignFilter]);
+
+  /* ── Audio playback ────────────────────────────────────────────── */
+  const togglePlayback = useCallback(async (row: CallLog) => {
+    // If already playing this row, pause it
+    if (playingId === row.id) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+      return;
+    }
+
+    // Stop any currently playing audio
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    if (!row.recording_url) return;
+
+    setAudioLoading(row.id);
+
+    try {
+      // Use the proxy endpoint to avoid CORS issues with Twilio
+      const audioUrl = `${serverUrl}/api/recording/${row.id}`;
+      const audio = new Audio();
+      audio.crossOrigin = "anonymous";
+
+      // Set auth header via fetch + blob
+      const res = await fetch(audioUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load recording");
+      const blob = await res.blob();
+      audio.src = URL.createObjectURL(blob);
+
+      audio.onended = () => {
+        setPlayingId(null);
+        URL.revokeObjectURL(audio.src);
+      };
+
+      audioRef.current = audio;
+      await audio.play();
+      setPlayingId(row.id);
+    } catch (err) {
+      console.error("Playback error:", err);
+      setPlayingId(null);
+    } finally {
+      setAudioLoading(null);
+    }
+  }, [playingId, serverUrl, token]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   /* ── Export CSV ─────────────────────────────────────────────────── */
   const handleExport = () => {
@@ -458,26 +523,61 @@ export default function CallLogsPage() {
                             Transcript
                           </button>
                         )}
-                        <button
-                          className="p-1.5 rounded-lg transition-colors cursor-pointer"
-                          style={{
-                            color: "var(--text-tertiary)",
-                            border: "1px solid var(--border-primary)",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = "var(--bg-hover)";
-                            e.currentTarget.style.color = "var(--text-primary)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = "transparent";
-                            e.currentTarget.style.color = "var(--text-tertiary)";
-                          }}
-                          title="Play recording"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        </button>
+                        {row.recording_url ? (
+                          <button
+                            onClick={() => togglePlayback(row)}
+                            className="p-1.5 rounded-lg transition-colors cursor-pointer"
+                            style={{
+                              color: playingId === row.id ? "var(--accent)" : "var(--text-tertiary)",
+                              border: `1px solid ${playingId === row.id ? "var(--accent)" : "var(--border-primary)"}`,
+                              background: playingId === row.id ? "var(--accent-muted)" : "transparent",
+                              opacity: audioLoading === row.id ? 0.5 : 1,
+                            }}
+                            onMouseEnter={(e) => {
+                              if (playingId !== row.id) {
+                                e.currentTarget.style.background = "var(--bg-hover)";
+                                e.currentTarget.style.color = "var(--text-primary)";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (playingId !== row.id) {
+                                e.currentTarget.style.background = "transparent";
+                                e.currentTarget.style.color = "var(--text-tertiary)";
+                              }
+                            }}
+                            title={playingId === row.id ? "Pause recording" : "Play recording"}
+                            disabled={audioLoading === row.id}
+                          >
+                            {audioLoading === row.id ? (
+                              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                            ) : playingId === row.id ? (
+                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            )}
+                          </button>
+                        ) : (
+                          <span
+                            className="p-1.5 rounded-lg inline-flex"
+                            style={{
+                              color: "var(--text-tertiary)",
+                              opacity: 0.3,
+                              border: "1px solid var(--border-primary)",
+                            }}
+                            title="No recording available"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
