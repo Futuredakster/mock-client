@@ -46,6 +46,9 @@ type Campaign = {
   scheduled_at: string | null;
   max_concurrent: number;
   retry_no_answer: boolean;
+  retry_attempts: number;
+  calling_window_start: string | null;
+  calling_window_end: string | null;
   status: string;
   flow_name: string;
   batch_name: string | null;
@@ -100,7 +103,10 @@ export default function CampaignsPage() {
   const [wizardBatch, setWizardBatch] = useState<Batch | null>(null);
   const [wizardSchedule, setWizardSchedule] = useState("");
   const [wizardMaxConcurrent, setWizardMaxConcurrent] = useState(1);
-  const [wizardRetryNoAnswer, setWizardRetryNoAnswer] = useState(false);
+  const [wizardRetryAttempts, setWizardRetryAttempts] = useState(0);
+  const [wizardWindowStart, setWizardWindowStart] = useState("09:00");
+  const [wizardWindowEnd, setWizardWindowEnd] = useState("17:00");
+  const [wizardWindowEnabled, setWizardWindowEnabled] = useState(false);
   const [wizardCreating, setWizardCreating] = useState(false);
 
   // Data for wizard
@@ -255,7 +261,10 @@ export default function CampaignsPage() {
     setWizardBatch(null);
     setWizardSchedule("");
     setWizardMaxConcurrent(1);
-    setWizardRetryNoAnswer(false);
+    setWizardRetryAttempts(0);
+    setWizardWindowEnabled(false);
+    setWizardWindowStart("09:00");
+    setWizardWindowEnd("17:00");
     setWizardCreating(false);
     setFlowVariables([]);
     setShowWizard(true);
@@ -289,8 +298,12 @@ export default function CampaignsPage() {
         flowId: wizardFlow.id,
         batchId: wizardBatch.batch_id,
         maxConcurrent: wizardMaxConcurrent,
-        retryNoAnswer: wizardRetryNoAnswer,
+        retryAttempts: wizardRetryAttempts,
       };
+      if (wizardWindowEnabled) {
+        body.callingWindowStart = wizardWindowStart;
+        body.callingWindowEnd = wizardWindowEnd;
+      }
       if (wizardSchedule) {
         body.scheduledAt = mstToUtc(wizardSchedule);
       }
@@ -342,7 +355,7 @@ export default function CampaignsPage() {
     if (!confirm(`Start calling ${pending.length} pending contacts?`)) return;
 
     const maxC = selectedCampaign?.max_concurrent || 1;
-    const shouldRetry = selectedCampaign?.retry_no_answer || false;
+    const retryAttempts = selectedCampaign?.retry_attempts || 0;
 
     setCallingAll(true);
 
@@ -356,34 +369,36 @@ export default function CampaignsPage() {
       }
     }
 
-    // Retry no_answer contacts if enabled
-    if (shouldRetry && selectedCampaign) {
-      await fetchCampaignDetail(selectedCampaign.id);
-      // After re-fetch, check for no_answer rows (use fresh data)
-      const retryRes = await fetch(`${serverUrl}/api/campaigns/${selectedCampaign.id}?pageSize=500`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (retryRes.ok) {
+    // Retry no_answer contacts if retryAttempts > 0
+    if (retryAttempts > 0 && selectedCampaign) {
+      for (let attempt = 1; attempt <= retryAttempts; attempt++) {
+        await fetchCampaignDetail(selectedCampaign.id);
+        const retryRes = await fetch(`${serverUrl}/api/campaigns/${selectedCampaign.id}?pageSize=500`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!retryRes.ok) break;
         const retryData = await retryRes.json();
         const noAnswerRows = (retryData.rows || []).filter((r: Upload) => r.status === "no_answer");
-        if (noAnswerRows.length > 0) {
-          // Reset no_answer rows to pending, then retry
-          for (const row of noAnswerRows) {
-            try {
-              await fetch(`${serverUrl}/api/uploads/${row.id}/status`, {
-                method: "PUT",
-                headers: authHeaders(),
-                body: JSON.stringify({ status: "pending" }),
-              });
-            } catch {}
-          }
-          // Call them again with concurrency
-          for (let i = 0; i < noAnswerRows.length; i += maxC) {
-            const batch = noAnswerRows.slice(i, i + maxC);
-            await Promise.all(batch.map((row: Upload) => callUpload(row.id)));
-            if (i + maxC < noAnswerRows.length) {
-              await new Promise((r) => setTimeout(r, 2000));
-            }
+        if (noAnswerRows.length === 0) break;
+
+        // Reset no_answer rows to pending, then retry
+        for (const row of noAnswerRows) {
+          try {
+            await fetch(`${serverUrl}/api/uploads/${row.id}/status`, {
+              method: "PUT",
+              headers: authHeaders(),
+              body: JSON.stringify({ status: "pending" }),
+            });
+          } catch {}
+        }
+        // Small delay before retry round
+        await new Promise((r) => setTimeout(r, 3000));
+        // Call them again with concurrency
+        for (let i = 0; i < noAnswerRows.length; i += maxC) {
+          const batch = noAnswerRows.slice(i, i + maxC);
+          await Promise.all(batch.map((row: Upload) => callUpload(row.id)));
+          if (i + maxC < noAnswerRows.length) {
+            await new Promise((r) => setTimeout(r, 2000));
           }
         }
       }
@@ -710,7 +725,8 @@ export default function CampaignsPage() {
                       ? `${selectedCampaign?.max_concurrent} concurrent calls`
                       : "Sequential calls"
                     }
-                    {selectedCampaign?.retry_no_answer && " · Retry unanswered"}
+                    {(selectedCampaign?.retry_attempts || 0) > 0 && ` · Retry ${selectedCampaign?.retry_attempts}×`}
+                    {selectedCampaign?.calling_window_start && selectedCampaign?.calling_window_end && ` · ${selectedCampaign.calling_window_start}–${selectedCampaign.calling_window_end} MST`}
                   </p>
                 </div>
                 <button
@@ -1210,26 +1226,81 @@ export default function CampaignsPage() {
                     </div>
                   </div>
 
-                  {/* Retry No Answer */}
+                  {/* Retry Unanswered Calls */}
                   <div className="rounded-lg border p-4" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Retry unanswered calls</p>
                         <p className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-                          Automatically retry contacts who don&apos;t pick up the first time
+                          Automatically retry contacts who don&apos;t pick up
+                        </p>
+                      </div>
+                      <select
+                        value={wizardRetryAttempts}
+                        onChange={(e) => setWizardRetryAttempts(parseInt(e.target.value))}
+                        className="px-3 py-2 rounded-lg text-sm focus:outline-none cursor-pointer"
+                        style={{
+                          background: "var(--bg-hover)",
+                          border: "1px solid var(--border-primary)",
+                          color: wizardRetryAttempts > 0 ? "var(--accent)" : "var(--text-secondary)",
+                          minWidth: 150,
+                        }}
+                      >
+                        <option value={0}>No retries</option>
+                        <option value={1}>Retry 1 time</option>
+                        <option value={2}>Retry 2 times</option>
+                        <option value={3}>Retry 3 times</option>
+                        <option value={5}>Retry 5 times</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Calling Window */}
+                  <div className="rounded-lg border p-4" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Calling window</p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>
+                          Restrict calls to specific hours (MST)
                         </p>
                       </div>
                       <button
-                        onClick={() => setWizardRetryNoAnswer(!wizardRetryNoAnswer)}
+                        onClick={() => setWizardWindowEnabled(!wizardWindowEnabled)}
                         className="relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0"
-                        style={{ background: wizardRetryNoAnswer ? "var(--accent)" : "var(--bg-hover)" }}
+                        style={{ background: wizardWindowEnabled ? "var(--accent)" : "var(--bg-hover)" }}
                       >
                         <div
                           className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
-                          style={{ transform: wizardRetryNoAnswer ? "translateX(22px)" : "translateX(2px)" }}
+                          style={{ transform: wizardWindowEnabled ? "translateX(22px)" : "translateX(2px)" }}
                         />
                       </button>
                     </div>
+                    {wizardWindowEnabled && (
+                      <div className="flex items-center gap-3 mt-2">
+                        <div>
+                          <label className="text-[11px] font-medium block mb-1" style={{ color: "var(--text-tertiary)" }}>From</label>
+                          <input
+                            type="time"
+                            value={wizardWindowStart}
+                            onChange={(e) => setWizardWindowStart(e.target.value)}
+                            className="px-3 py-2 rounded-lg text-sm focus:outline-none [color-scheme:dark]"
+                            style={{ background: "var(--bg-hover)", border: "1px solid var(--border-primary)", color: "var(--text-primary)" }}
+                          />
+                        </div>
+                        <span className="text-sm mt-5" style={{ color: "var(--text-tertiary)" }}>to</span>
+                        <div>
+                          <label className="text-[11px] font-medium block mb-1" style={{ color: "var(--text-tertiary)" }}>Until</label>
+                          <input
+                            type="time"
+                            value={wizardWindowEnd}
+                            onChange={(e) => setWizardWindowEnd(e.target.value)}
+                            className="px-3 py-2 rounded-lg text-sm focus:outline-none [color-scheme:dark]"
+                            style={{ background: "var(--bg-hover)", border: "1px solid var(--border-primary)", color: "var(--text-primary)" }}
+                          />
+                        </div>
+                        <span className="text-xs mt-5" style={{ color: "var(--text-tertiary)" }}>MST</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Schedule */}
@@ -1274,8 +1345,12 @@ export default function CampaignsPage() {
                       <span style={{ color: "var(--text-secondary)" }}>Concurrent:</span>
                       <span className="font-medium" style={{ color: "var(--text-primary)" }}>{wizardMaxConcurrent} call{wizardMaxConcurrent > 1 ? "s" : ""} at a time</span>
                       <span style={{ color: "var(--text-secondary)" }}>Retry:</span>
-                      <span className="font-medium" style={{ color: wizardRetryNoAnswer ? "var(--accent)" : "var(--text-tertiary)" }}>
-                        {wizardRetryNoAnswer ? "Yes — retry unanswered" : "No retries"}
+                      <span className="font-medium" style={{ color: wizardRetryAttempts > 0 ? "var(--accent)" : "var(--text-tertiary)" }}>
+                        {wizardRetryAttempts > 0 ? `${wizardRetryAttempts}× retry unanswered` : "No retries"}
+                      </span>
+                      <span style={{ color: "var(--text-secondary)" }}>Calling window:</span>
+                      <span className="font-medium" style={{ color: wizardWindowEnabled ? "var(--accent)" : "var(--text-tertiary)" }}>
+                        {wizardWindowEnabled ? `${wizardWindowStart} – ${wizardWindowEnd} MST` : "Anytime"}
                       </span>
                       <span style={{ color: "var(--text-secondary)" }}>Schedule:</span>
                       <span className="font-medium" style={{ color: wizardSchedule ? "var(--accent)" : "var(--text-tertiary)" }}>
