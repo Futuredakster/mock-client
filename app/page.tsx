@@ -287,28 +287,6 @@ export default function DashboardPage() {
           </table>
         )}
       </div>
-
-      {/* ── Quick Actions ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <QuickAction
-          href="/flows"
-          icon={<FlowStatIcon />}
-          title="Manage Flows"
-          sub="Create & edit call scripts"
-        />
-        <QuickAction
-          href="/uploads"
-          icon={<ContactsStatIcon />}
-          title="Contacts"
-          sub="Import & manage contacts"
-        />
-        <QuickAction
-          href="/caller"
-          icon={<PhoneStatIcon />}
-          title="Campaigns"
-          sub="Create & manage campaigns"
-        />
-      </div>
     </div>
   );
 }
@@ -367,35 +345,6 @@ function OutcomeBar({ label, value, max, color }: { label: string; value: number
         />
       </div>
     </div>
-  );
-}
-
-function QuickAction({ href, icon, title, sub }: { href: string; icon: React.ReactNode; title: string; sub: string }) {
-  return (
-    <Link
-      href={href}
-      className="group rounded-xl border p-4 flex items-center gap-3.5 transition-all"
-      style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "var(--accent)";
-        e.currentTarget.style.background = "var(--bg-hover)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "var(--border-primary)";
-        e.currentTarget.style.background = "var(--bg-tertiary)";
-      }}
-    >
-      <div
-        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-        style={{ background: "var(--accent-muted)" }}
-      >
-        {icon}
-      </div>
-      <div>
-        <div className="text-sm font-semibold transition-colors" style={{ color: "var(--text-primary)" }}>{title}</div>
-        <div className="text-xs" style={{ color: "var(--text-tertiary)" }}>{sub}</div>
-      </div>
-    </Link>
   );
 }
 
