@@ -922,27 +922,32 @@ export default function CampaignsPage() {
             </div>
 
             {/* Stepper */}
-            <div className="px-6 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid var(--border-secondary)" }}>
-              {[
-                { n: 1, label: "Name" },
-                { n: 2, label: "Flow" },
-                { n: 3, label: "Contacts" },
-                { n: 4, label: "Schedule" },
-              ].map((s, i) => (
-                <div key={s.n} className="flex items-center gap-2 flex-1">
-                  {i > 0 && <div className="flex-1 h-px" style={{ background: wizardStep >= s.n ? "var(--accent)" : "var(--border-primary)" }} />}
-                  <div className="flex items-center gap-1.5">
-                    <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                      style={{
-                        background: wizardStep >= s.n ? "var(--accent)" : "var(--bg-hover)",
-                        color: wizardStep >= s.n ? "white" : "var(--text-tertiary)",
-                      }}
-                    >{s.n}</div>
-                    <span className="text-xs font-medium hidden sm:inline" style={{ color: wizardStep >= s.n ? "var(--text-primary)" : "var(--text-tertiary)" }}>{s.label}</span>
+            <div className="px-6 py-3 flex items-center" style={{ borderBottom: "1px solid var(--border-secondary)" }}>
+              {["Name", "Flow", "Contacts", "Schedule"].map((label, i) => {
+                const stepNum = i + 1;
+                const isActive = wizardStep === stepNum;
+                const isDone = wizardStep > stepNum;
+                return (
+                  <div key={label} className="contents">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0"
+                        style={{
+                          background: isDone ? "rgba(52,211,153,0.15)" : isActive ? "var(--accent-muted)" : "var(--bg-hover)",
+                          border: isDone ? "1.5px solid var(--success)" : isActive ? "1.5px solid var(--accent)" : "1.5px solid var(--border-primary)",
+                          color: isDone ? "var(--success)" : isActive ? "var(--accent)" : "var(--text-tertiary)",
+                        }}
+                      >
+                        {isDone ? "✓" : stepNum}
+                      </div>
+                      <span className="text-[13px] font-medium hidden sm:inline" style={{ color: isDone ? "var(--success)" : isActive ? "var(--accent)" : "var(--text-tertiary)" }}>{label}</span>
+                    </div>
+                    {i < 3 && (
+                      <div className="flex-1 h-px mx-3" style={{ background: isDone ? "var(--success)" : "var(--border-primary)" }} />
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Modal body */}
