@@ -363,41 +363,38 @@ export default function UploadsPage() {
                 const isExpanded = expandedBatch === b.batch_id;
 
                 return (
-                  <tr key={b.batch_id}>
-                    <td colSpan={6} className="p-0">
-                      {/* Row */}
-                      <div
-                        className="flex items-center cursor-pointer transition-colors px-5 py-3.5"
-                        style={{ borderBottom: isExpanded ? "none" : "1px solid var(--border-secondary)" }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                        onClick={() => toggleBatch(b.batch_id)}
-                      >
-                        {/* Name */}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate" style={{ color: "var(--text-primary)" }}>
-                            {b.batch_name || "Untitled Upload"}
-                          </div>
+                  <>
+                    {/* Main row */}
+                    <tr
+                      key={b.batch_id}
+                      className="transition-colors cursor-pointer"
+                      style={{ borderBottom: isExpanded ? "none" : "1px solid var(--border-secondary)" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-hover)")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      onClick={() => toggleBatch(b.batch_id)}
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="font-medium truncate" style={{ color: "var(--text-primary)" }}>
+                          {b.batch_name || "Untitled Upload"}
                         </div>
-                        {/* Contact count */}
-                        <div className="w-20 text-center hidden sm:block" style={{ color: "var(--text-secondary)" }}>{total}</div>
-                        {/* Flow */}
-                        <div className="w-36 hidden md:block truncate" style={{ color: b.flow_name ? "var(--text-secondary)" : "var(--text-tertiary)" }}>
-                          {b.flow_name || "Unassigned"}
-                        </div>
-                        {/* Progress */}
-                        <div className="w-28 hidden md:flex items-center gap-2">
-                          <div className="flex-1 h-1.5 rounded-full" style={{ background: "var(--bg-hover)" }}>
+                      </td>
+                      <td className="px-5 py-3.5 hidden sm:table-cell" style={{ color: "var(--text-secondary)" }}>{total}</td>
+                      <td className="px-5 py-3.5 hidden md:table-cell truncate" style={{ color: b.flow_name ? "var(--text-secondary)" : "var(--text-tertiary)" }}>
+                        {b.flow_name || "Unassigned"}
+                      </td>
+                      <td className="px-5 py-3.5 hidden md:table-cell">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full max-w-[100px]" style={{ background: "var(--bg-hover)" }}>
                             <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: "var(--accent)" }} />
                           </div>
                           <span className="text-xs tabular-nums" style={{ color: "var(--text-secondary)" }}>{pct}%</span>
                         </div>
-                        {/* Created */}
-                        <div className="w-28 hidden lg:block text-xs" style={{ color: "var(--text-tertiary)" }}>
-                          {new Date(b.uploaded_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </div>
-                        {/* Actions */}
-                        <div className="w-20 flex items-center justify-end gap-2">
+                      </td>
+                      <td className="px-5 py-3.5 hidden lg:table-cell text-xs" style={{ color: "var(--text-tertiary)" }}>
+                        {new Date(b.uploaded_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteBatch(b.batch_id); }}
                             className="p-1.5 rounded-lg transition-colors cursor-pointer"
@@ -414,11 +411,13 @@ export default function UploadsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
                           </svg>
                         </div>
-                      </div>
+                      </td>
+                    </tr>
 
-                      {/* Expanded detail view */}
-                      {isExpanded && (
-                        <div style={{ borderBottom: "1px solid var(--border-primary)", background: "var(--bg-primary)" }}>
+                    {/* Expanded detail row */}
+                    {isExpanded && (
+                      <tr key={`${b.batch_id}-detail`}>
+                        <td colSpan={6} className="p-0" style={{ borderBottom: "1px solid var(--border-primary)", background: "var(--bg-primary)" }}>
                           {/* Stats row */}
                           <div className="px-5 py-3 flex items-center gap-4 text-xs flex-wrap" style={{ borderBottom: "1px solid var(--border-secondary)" }}>
                             {Number(b.pending) > 0 && <span style={{ color: "var(--warning)" }}>⏳ {b.pending} pending</span>}
@@ -520,10 +519,10 @@ export default function UploadsPage() {
                               </div>
                             </div>
                           )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>
