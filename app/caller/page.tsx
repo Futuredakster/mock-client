@@ -442,7 +442,7 @@ export default function CallerPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1400px]">
+    <div className="p-6 lg:p-8 space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
         <button

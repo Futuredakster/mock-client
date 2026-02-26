@@ -273,7 +273,7 @@ export default function UploadsPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 max-w-[1400px]">
+    <div className="p-6 lg:p-8 space-y-6">
       {/* ── Page Header ──────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
