@@ -44,6 +44,8 @@ type Campaign = {
   flow_id: string;
   batch_id: string;
   scheduled_at: string | null;
+  max_concurrent: number;
+  retry_no_answer: boolean;
   status: string;
   flow_name: string;
   batch_name: string | null;
@@ -97,6 +99,8 @@ export default function CampaignsPage() {
   const [wizardFlow, setWizardFlow] = useState<Flow | null>(null);
   const [wizardBatch, setWizardBatch] = useState<Batch | null>(null);
   const [wizardSchedule, setWizardSchedule] = useState("");
+  const [wizardMaxConcurrent, setWizardMaxConcurrent] = useState(1);
+  const [wizardRetryNoAnswer, setWizardRetryNoAnswer] = useState(false);
   const [wizardCreating, setWizardCreating] = useState(false);
 
   // Data for wizard
@@ -250,6 +254,8 @@ export default function CampaignsPage() {
     setWizardFlow(null);
     setWizardBatch(null);
     setWizardSchedule("");
+    setWizardMaxConcurrent(1);
+    setWizardRetryNoAnswer(false);
     setWizardCreating(false);
     setFlowVariables([]);
     setShowWizard(true);
@@ -278,10 +284,12 @@ export default function CampaignsPage() {
     if (!wizardName || !wizardFlow || !wizardBatch) return;
     setWizardCreating(true);
     try {
-      const body: Record<string, string> = {
+      const body: Record<string, string | number | boolean> = {
         name: wizardName,
         flowId: wizardFlow.id,
         batchId: wizardBatch.batch_id,
+        maxConcurrent: wizardMaxConcurrent,
+        retryNoAnswer: wizardRetryNoAnswer,
       };
       if (wizardSchedule) {
         body.scheduledAt = mstToUtc(wizardSchedule);
@@ -333,11 +341,54 @@ export default function CampaignsPage() {
     if (pending.length === 0) return;
     if (!confirm(`Start calling ${pending.length} pending contacts?`)) return;
 
+    const maxC = selectedCampaign?.max_concurrent || 1;
+    const shouldRetry = selectedCampaign?.retry_no_answer || false;
+
     setCallingAll(true);
-    for (const row of pending) {
-      await callUpload(row.id);
-      await new Promise((r) => setTimeout(r, 2000));
+
+    // Process in batches of maxC concurrent calls
+    for (let i = 0; i < pending.length; i += maxC) {
+      const batch = pending.slice(i, i + maxC);
+      await Promise.all(batch.map((row) => callUpload(row.id)));
+      // Small delay between batches
+      if (i + maxC < pending.length) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
     }
+
+    // Retry no_answer contacts if enabled
+    if (shouldRetry && selectedCampaign) {
+      await fetchCampaignDetail(selectedCampaign.id);
+      // After re-fetch, check for no_answer rows (use fresh data)
+      const retryRes = await fetch(`${serverUrl}/api/campaigns/${selectedCampaign.id}?pageSize=500`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (retryRes.ok) {
+        const retryData = await retryRes.json();
+        const noAnswerRows = (retryData.rows || []).filter((r: Upload) => r.status === "no_answer");
+        if (noAnswerRows.length > 0) {
+          // Reset no_answer rows to pending, then retry
+          for (const row of noAnswerRows) {
+            try {
+              await fetch(`${serverUrl}/api/uploads/${row.id}/status`, {
+                method: "PUT",
+                headers: authHeaders(),
+                body: JSON.stringify({ status: "pending" }),
+              });
+            } catch {}
+          }
+          // Call them again with concurrency
+          for (let i = 0; i < noAnswerRows.length; i += maxC) {
+            const batch = noAnswerRows.slice(i, i + maxC);
+            await Promise.all(batch.map((row: Upload) => callUpload(row.id)));
+            if (i + maxC < noAnswerRows.length) {
+              await new Promise((r) => setTimeout(r, 2000));
+            }
+          }
+        }
+      }
+    }
+
     setCallingAll(false);
   };
 
@@ -655,7 +706,11 @@ export default function CampaignsPage() {
                 <div>
                   <p className="font-medium" style={{ color: "var(--text-primary)" }}>Ready to call {pendingCount} contacts</p>
                   <p className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>
-                    Calls will be made sequentially with a 2-second delay
+                    {(selectedCampaign?.max_concurrent || 1) > 1
+                      ? `${selectedCampaign?.max_concurrent} concurrent calls`
+                      : "Sequential calls"
+                    }
+                    {selectedCampaign?.retry_no_answer && " · Retry unanswered"}
                   </p>
                 </div>
                 <button
@@ -1131,10 +1186,57 @@ export default function CampaignsPage() {
               {/* Step 4: Schedule (optional) */}
               {wizardStep === 4 && (
                 <div className="space-y-5">
+                  {/* Max Concurrent Calls */}
+                  <div>
+                    <p className="text-sm font-medium mb-2" style={{ color: "var(--text-secondary)" }}>Max Concurrent Calls</p>
+                    <p className="text-xs mb-3" style={{ color: "var(--text-tertiary)" }}>
+                      How many calls can run at the same time. Higher = faster but may hit carrier limits.
+                    </p>
+                    <div className="flex items-center gap-3">
+                      {[1, 2, 3, 5, 10].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setWizardMaxConcurrent(n)}
+                          className="px-4 py-2.5 rounded-lg text-sm font-medium transition-all cursor-pointer"
+                          style={{
+                            background: wizardMaxConcurrent === n ? "var(--accent)" : "var(--bg-tertiary)",
+                            border: wizardMaxConcurrent === n ? "1px solid var(--accent)" : "1px solid var(--border-primary)",
+                            color: wizardMaxConcurrent === n ? "white" : "var(--text-secondary)",
+                          }}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Retry No Answer */}
+                  <div className="rounded-lg border p-4" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Retry unanswered calls</p>
+                        <p className="text-xs mt-0.5" style={{ color: "var(--text-tertiary)" }}>
+                          Automatically retry contacts who don&apos;t pick up the first time
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setWizardRetryNoAnswer(!wizardRetryNoAnswer)}
+                        className="relative w-11 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0"
+                        style={{ background: wizardRetryNoAnswer ? "var(--accent)" : "var(--bg-hover)" }}
+                      >
+                        <div
+                          className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform"
+                          style={{ transform: wizardRetryNoAnswer ? "translateX(22px)" : "translateX(2px)" }}
+                        />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Schedule */}
                   <div>
                     <p className="text-sm font-medium mb-2" style={{ color: "var(--text-secondary)" }}>Schedule calls (optional)</p>
-                    <p className="text-xs mb-4" style={{ color: "var(--text-tertiary)" }}>
-                      Schedule all pending calls for a specific time, or skip this step to call manually later.
+                    <p className="text-xs mb-3" style={{ color: "var(--text-tertiary)" }}>
+                      Schedule all pending calls for a specific time, or skip to call manually later.
                     </p>
                     <div className="flex items-center gap-3">
                       <input
@@ -1168,6 +1270,12 @@ export default function CampaignsPage() {
                       <span style={{ color: "var(--text-secondary)" }}>Contacts:</span>
                       <span className="font-medium" style={{ color: "var(--text-primary)" }}>
                         {wizardBatch?.batch_name || "Upload"} ({wizardBatch?.total_rows} contacts)
+                      </span>
+                      <span style={{ color: "var(--text-secondary)" }}>Concurrent:</span>
+                      <span className="font-medium" style={{ color: "var(--text-primary)" }}>{wizardMaxConcurrent} call{wizardMaxConcurrent > 1 ? "s" : ""} at a time</span>
+                      <span style={{ color: "var(--text-secondary)" }}>Retry:</span>
+                      <span className="font-medium" style={{ color: wizardRetryNoAnswer ? "var(--accent)" : "var(--text-tertiary)" }}>
+                        {wizardRetryNoAnswer ? "Yes — retry unanswered" : "No retries"}
                       </span>
                       <span style={{ color: "var(--text-secondary)" }}>Schedule:</span>
                       <span className="font-medium" style={{ color: wizardSchedule ? "var(--accent)" : "var(--text-tertiary)" }}>
