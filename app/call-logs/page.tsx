@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, Fragment } from "react";
 import { useAuth } from "@/lib/auth-context";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3005";
 
 /* ── Types ───────────────────────────────────────────────────────── */
 interface CallLog {
@@ -121,7 +120,7 @@ function StatCard({ label, value, color }: { label: string; value: string | numb
 
 /* ── Main Component ──────────────────────────────────────────────── */
 export default function CallLogsPage() {
-  const { token } = useAuth();
+  const { token, serverUrl } = useAuth();
 
   // Data
   const [rows, setRows] = useState<CallLog[]>([]);
@@ -158,7 +157,7 @@ export default function CallLogsPage() {
       params.set("page", String(safePage));
       params.set("pageSize", String(pageSize));
 
-      const res = await fetch(`${API}/api/call-logs?${params}`, {
+      const res = await fetch(`${serverUrl}/api/call-logs?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch call logs");
@@ -173,7 +172,7 @@ export default function CallLogsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, search, outcomeFilter, campaignFilter, safePage]);
+  }, [token, serverUrl, search, outcomeFilter, campaignFilter, safePage]);
 
   useEffect(() => {
     fetchLogs();
