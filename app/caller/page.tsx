@@ -336,7 +336,8 @@ export default function CampaignsPage() {
     try {
       const res = await fetch(`${serverUrl}/call-upload/${uploadId}`, {
         method: "POST",
-        headers: authHeaders(),
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ flowId: selectedCampaign?.flow_id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -1167,7 +1168,6 @@ export default function CampaignsPage() {
                                     <span style={{ color: "var(--text-secondary)" }}>{total} contacts</span>
                                     {pending > 0 && <span style={{ color: "var(--warning)" }}>⏳ {pending} pending</span>}
                                     {Number(batch.completed) > 0 && <span style={{ color: "var(--success)" }}>✅ {batch.completed} completed</span>}
-                                    {batch.flow_name && <span style={{ color: "var(--text-tertiary)" }}>Flow: {batch.flow_name}</span>}
                                   </div>
                                   {/* Field match indicators */}
                                   {flowVariables.length > 0 && (
