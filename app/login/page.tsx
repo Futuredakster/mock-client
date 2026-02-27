@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <main
-      className="min-h-screen flex items-center justify-center p-6"
+      className="fixed inset-0 flex items-center justify-center p-6 z-50"
       style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}
     >
       {/* Subtle radial glow behind the card */}
