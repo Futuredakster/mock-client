@@ -24,11 +24,21 @@ type Batch = {
   flow_name: string | null;
 };
 
+type DayVolume = {
+  date: string;
+  completed: number;
+  failed: number;
+  no_answer: number;
+  voicemail: number;
+  total: number;
+};
+
 export default function DashboardPage() {
   const { user, token, loading, serverUrl, authHeaders } = useAuth();
   const router = useRouter();
   const [flows, setFlows] = useState<Flow[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [dailyVolume, setDailyVolume] = useState<DayVolume[]>([]);
   const [stats, setStats] = useState({ totalFlows: 0, totalUploads: 0, pendingCalls: 0, completedCalls: 0, callingNow: 0, failedCalls: 0 });
 
   useEffect(() => {
@@ -57,6 +67,13 @@ export default function DashboardPage() {
         const callingNow = arr.reduce((sum: number, b: Batch) => sum + Number(b.calling), 0);
         const failedCalls = arr.reduce((sum: number, b: Batch) => sum + Number(b.failed), 0);
         setStats((s) => ({ ...s, totalUploads, pendingCalls, completedCalls, callingNow, failedCalls }));
+      })
+      .catch(() => {});
+
+    fetch(`${serverUrl}/api/call-logs/daily-volume`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setDailyVolume(data);
       })
       .catch(() => {});
   }, [token, user, serverUrl, authHeaders]);
@@ -143,7 +160,7 @@ export default function DashboardPage() {
 
       {/* ── Two Column: Chart placeholder + Call Outcomes ───── */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Call Volume Chart Placeholder */}
+        {/* Call Volume Chart */}
         <div className="rounded-xl border p-5" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Call Volume</h2>
@@ -151,22 +168,74 @@ export default function DashboardPage() {
               Last 7 days
             </span>
           </div>
-          <div className="h-40 flex items-end gap-2 px-2">
-            {[40, 65, 45, 80, 55, 70, 50].map((h, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                <div
-                  className="w-full rounded-t-md transition-all hover:opacity-80"
-                  style={{
-                    height: `${h}%`,
-                    background: `linear-gradient(to top, var(--accent), rgba(124, 92, 252, 0.4))`,
-                  }}
-                />
-                <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
-                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i]}
-                </span>
+          {(() => {
+            const maxVol = Math.max(...dailyVolume.map(d => d.total), 1);
+            const totalCalls = dailyVolume.reduce((s, d) => s + d.total, 0);
+            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+            if (totalCalls === 0) {
+              return (
+                <div className="h-40 flex flex-col items-center justify-center gap-2">
+                  <svg className="w-8 h-8" style={{ color: "var(--text-tertiary)" }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+                  </svg>
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>No calls in the last 7 days</p>
+                  <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Data will appear here once calls are made</p>
+                </div>
+              );
+            }
+
+            return (
+              <div>
+                <div className="h-40 flex items-end gap-2 px-2">
+                  {dailyVolume.map((d, i) => {
+                    const pct = maxVol > 0 ? (d.total / maxVol) * 100 : 0;
+                    const dateObj = new Date(d.date + "T12:00:00");
+                    const dayLabel = dayNames[dateObj.getDay()];
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                        {/* Tooltip */}
+                        <div
+                          className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
+                          style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--border-primary)" }}
+                        >
+                          {d.total} call{d.total !== 1 ? "s" : ""}
+                        </div>
+                        <div
+                          className="w-full rounded-t-md transition-all hover:opacity-80"
+                          style={{
+                            height: `${Math.max(pct, d.total > 0 ? 4 : 0)}%`,
+                            background: d.total > 0
+                              ? "linear-gradient(to top, var(--accent), rgba(124, 92, 252, 0.4))"
+                              : "var(--bg-hover)",
+                            minHeight: d.total > 0 ? "4px" : "2px",
+                          }}
+                        />
+                        <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                          {dayLabel}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex items-center justify-between mt-3 px-1">
+                  <span className="text-[10px] font-medium" style={{ color: "var(--text-tertiary)" }}>
+                    {totalCalls} total call{totalCalls !== 1 ? "s" : ""} this week
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--success)" }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--success)" }} />
+                      {dailyVolume.reduce((s, d) => s + d.completed, 0)} answered
+                    </span>
+                    <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--text-tertiary)" }} />
+                      {dailyVolume.reduce((s, d) => s + d.no_answer + d.voicemail, 0)} missed
+                    </span>
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
         </div>
 
         {/* Call Outcomes */}
