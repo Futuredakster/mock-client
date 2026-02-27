@@ -39,6 +39,8 @@ export default function DashboardPage() {
   const [flows, setFlows] = useState<Flow[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [dailyVolume, setDailyVolume] = useState<DayVolume[]>([]);
+  const [volumeRange, setVolumeRange] = useState("7d");
+  const [volumeGroupBy, setVolumeGroupBy] = useState("day");
   const [stats, setStats] = useState({ totalFlows: 0, totalUploads: 0, pendingCalls: 0, completedCalls: 0, callingNow: 0, failedCalls: 0 });
 
   useEffect(() => {
@@ -70,13 +72,21 @@ export default function DashboardPage() {
       })
       .catch(() => {});
 
-    fetch(`${serverUrl}/api/call-logs/daily-volume`, { headers: authHeaders() })
+  }, [token, user, serverUrl, authHeaders]);
+
+  // Fetch call volume (re-runs when range changes)
+  useEffect(() => {
+    if (!token || !user) return;
+    fetch(`${serverUrl}/api/call-logs/daily-volume?range=${volumeRange}`, { headers: authHeaders() })
       .then((r) => r.json())
       .then((data) => {
-        if (Array.isArray(data)) setDailyVolume(data);
+        if (data && Array.isArray(data.data)) {
+          setDailyVolume(data.data);
+          setVolumeGroupBy(data.groupBy || "day");
+        }
       })
       .catch(() => {});
-  }, [token, user, serverUrl, authHeaders]);
+  }, [token, user, serverUrl, authHeaders, volumeRange]);
 
   const greeting = useMemo(() => {
     const h = new Date().getHours();
@@ -164,14 +174,34 @@ export default function DashboardPage() {
         <div className="rounded-xl border p-5" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Call Volume</h2>
-            <span className="text-xs px-2.5 py-1 rounded-md" style={{ background: "var(--bg-hover)", color: "var(--text-secondary)" }}>
-              Last 7 days
-            </span>
+            <select
+              value={volumeRange}
+              onChange={(e) => setVolumeRange(e.target.value)}
+              className="text-xs px-2.5 py-1 rounded-md outline-none cursor-pointer appearance-none pr-6"
+              style={{ background: "var(--bg-hover)", color: "var(--text-secondary)", border: "1px solid var(--border-primary)", backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C6478' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
+            >
+              <option value="7d">Last 7 days</option>
+              <option value="14d">Last 14 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="90d">Last 3 months</option>
+              <option value="6m">Last 6 months</option>
+              <option value="1y">Last year</option>
+              <option value="all">All time</option>
+            </select>
           </div>
           {(() => {
             const maxVol = Math.max(...dailyVolume.map(d => d.total), 1);
             const totalCalls = dailyVolume.reduce((s, d) => s + d.total, 0);
             const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const rangeLabels: Record<string, string> = { "7d": "7 days", "14d": "14 days", "30d": "30 days", "90d": "3 months", "6m": "6 months", "1y": "year", "all": "all time" };
+
+            const getBarLabel = (dateStr: string) => {
+              const d = new Date(dateStr + "T12:00:00");
+              if (volumeGroupBy === "month") return monthNames[d.getMonth()];
+              if (volumeGroupBy === "week") return `${monthNames[d.getMonth()]} ${d.getDate()}`;
+              return dayNames[d.getDay()];
+            };
 
             if (totalCalls === 0) {
               return (
@@ -179,7 +209,7 @@ export default function DashboardPage() {
                   <svg className="w-8 h-8" style={{ color: "var(--text-tertiary)" }} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
                   </svg>
-                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>No calls in the last 7 days</p>
+                  <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>No calls in the last {rangeLabels[volumeRange] || "period"}</p>
                   <p className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>Data will appear here once calls are made</p>
                 </div>
               );
@@ -189,10 +219,9 @@ export default function DashboardPage() {
               <div>
                 <div className="h-40 flex items-end gap-2 px-2">
                   {dailyVolume.map((d, i) => {
-                    const barMaxPx = 140; // leave room for day label
+                    const barMaxPx = 140;
                     const barH = maxVol > 0 ? Math.round((d.total / maxVol) * barMaxPx) : 0;
-                    const dateObj = new Date(d.date + "T12:00:00");
-                    const dayLabel = dayNames[dateObj.getDay()];
+                    const dayLabel = getBarLabel(d.date);
                     return (
                       <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
                         {/* Tooltip */}
@@ -200,7 +229,7 @@ export default function DashboardPage() {
                           className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
                           style={{ background: "var(--bg-primary)", color: "var(--text-primary)", border: "1px solid var(--border-primary)" }}
                         >
-                          {d.total} call{d.total !== 1 ? "s" : ""}
+                          {d.total} call{d.total !== 1 ? "s" : ""}{volumeGroupBy === "week" ? " (week)" : volumeGroupBy === "month" ? ` (${dayLabel})` : ""}
                         </div>
                         <div
                           className="w-full rounded-t-md transition-all hover:opacity-80"
@@ -220,7 +249,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center justify-between mt-3 px-1">
                   <span className="text-[10px] font-medium" style={{ color: "var(--text-tertiary)" }}>
-                    {totalCalls} total call{totalCalls !== 1 ? "s" : ""} this week
+                    {totalCalls} total call{totalCalls !== 1 ? "s" : ""}
                   </span>
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1 text-[10px]" style={{ color: "var(--success)" }}>
