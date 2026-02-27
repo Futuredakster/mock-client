@@ -171,7 +171,7 @@ export default function DashboardPage() {
       {/* ── Two Column: Chart placeholder + Call Outcomes ───── */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Call Volume Chart */}
-        <div className="rounded-xl border p-5" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
+        <div className="rounded-xl border p-5 overflow-hidden" style={{ background: "var(--bg-tertiary)", borderColor: "var(--border-primary)" }}>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Call Volume</h2>
             <select
@@ -222,13 +222,17 @@ export default function DashboardPage() {
 
             return (
               <div>
-                <div className="h-40 flex items-end gap-2 px-2">
+                <div className="h-40 flex items-end px-1" style={{ gap: dailyVolume.length > 14 ? "1px" : "8px" }}>
                   {dailyVolume.map((d, i) => {
                     const barMaxPx = 140;
                     const barH = maxVol > 0 ? Math.round((d.total / maxVol) * barMaxPx) : 0;
                     const dayLabel = getBarLabel(d.date);
+                    // Only show every Nth label to avoid overflow
+                    const count = dailyVolume.length;
+                    const labelEvery = count <= 7 ? 1 : count <= 14 ? 2 : count <= 30 ? 5 : 1;
+                    const showLabel = count <= 14 ? true : (i % labelEvery === 0 || i === count - 1);
                     return (
-                      <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative" style={{ minWidth: 0 }}>
                         {/* Tooltip */}
                         <div
                           className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
@@ -237,15 +241,19 @@ export default function DashboardPage() {
                           {d.total} call{d.total !== 1 ? "s" : ""}{volumeGroupBy === "week" ? " (week)" : volumeGroupBy === "month" ? ` (${dayLabel})` : ""}
                         </div>
                         <div
-                          className="w-full rounded-t-md transition-all hover:opacity-80"
+                          className="w-full rounded-t-sm transition-all hover:opacity-80"
                           style={{
                             height: `${d.total > 0 ? Math.max(barH, 4) : 2}px`,
                             background: d.total > 0
                               ? "linear-gradient(to top, var(--accent), rgba(124, 92, 252, 0.4))"
                               : "var(--bg-hover)",
+                            borderRadius: count > 14 ? "2px 2px 0 0" : "4px 4px 0 0",
                           }}
                         />
-                        <span className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>
+                        <span
+                          className="text-[10px] mt-1 truncate w-full text-center"
+                          style={{ color: "var(--text-tertiary)", visibility: showLabel ? "visible" : "hidden" }}
+                        >
                           {dayLabel}
                         </span>
                       </div>
