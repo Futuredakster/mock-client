@@ -189,11 +189,12 @@ export default function DashboardPage() {
               <div>
                 <div className="h-40 flex items-end gap-2 px-2">
                   {dailyVolume.map((d, i) => {
-                    const pct = maxVol > 0 ? (d.total / maxVol) * 100 : 0;
+                    const barMaxPx = 140; // leave room for day label
+                    const barH = maxVol > 0 ? Math.round((d.total / maxVol) * barMaxPx) : 0;
                     const dateObj = new Date(d.date + "T12:00:00");
                     const dayLabel = dayNames[dateObj.getDay()];
                     return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+                      <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative">
                         {/* Tooltip */}
                         <div
                           className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-[10px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10"
@@ -204,14 +205,13 @@ export default function DashboardPage() {
                         <div
                           className="w-full rounded-t-md transition-all hover:opacity-80"
                           style={{
-                            height: `${Math.max(pct, d.total > 0 ? 4 : 0)}%`,
+                            height: `${d.total > 0 ? Math.max(barH, 4) : 2}px`,
                             background: d.total > 0
                               ? "linear-gradient(to top, var(--accent), rgba(124, 92, 252, 0.4))"
                               : "var(--bg-hover)",
-                            minHeight: d.total > 0 ? "4px" : "2px",
                           }}
                         />
-                        <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+                        <span className="text-[10px] mt-1" style={{ color: "var(--text-tertiary)" }}>
                           {dayLabel}
                         </span>
                       </div>
