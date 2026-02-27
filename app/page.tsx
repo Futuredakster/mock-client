@@ -197,7 +197,12 @@ export default function DashboardPage() {
             const rangeLabels: Record<string, string> = { "7d": "7 days", "14d": "14 days", "30d": "30 days", "90d": "3 months", "6m": "6 months", "1y": "year", "all": "all time" };
 
             const getBarLabel = (dateStr: string) => {
-              const d = new Date(dateStr + "T12:00:00");
+              // dateStr may be "2026-02-27" or "2026-02-27T00:00:00.000Z"
+              const raw = typeof dateStr === "string" ? dateStr.split("T")[0] : "";
+              const parts = raw.split("-");
+              if (parts.length < 3) return "?";
+              const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+              if (isNaN(d.getTime())) return "?";
               if (volumeGroupBy === "month") return monthNames[d.getMonth()];
               if (volumeGroupBy === "week") return `${monthNames[d.getMonth()]} ${d.getDate()}`;
               return dayNames[d.getDay()];
