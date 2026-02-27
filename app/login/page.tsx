@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
   const { login, signup, user } = useAuth();
@@ -165,6 +166,19 @@ export default function LoginPage() {
                 onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border-primary)")}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
               />
+              {mode === "login" && (
+                <div className="flex justify-end mt-1">
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs font-medium transition-colors"
+                    style={{ color: "var(--text-tertiary)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--accent)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-tertiary)")}
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
